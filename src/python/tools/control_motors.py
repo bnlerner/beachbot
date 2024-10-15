@@ -9,17 +9,24 @@ Assumes that the ODrive is already configured for velocity control.
 See https://docs.odriverobotics.com/v/latest/manual/can-protocol.html for protocol
 documentation.
 """
-from typing import Tuple
+import asyncio
+import pydantic
 import can
 import struct
 
-def _control_motor(bus: can.interface.Bus, node_id:int) -> None:
+class Motor(pydantic.BaseModel):
+    node_id: int
+    location: str
+
+_ALL_MOTORS = [Motor(node_id=id, location="blah") for id in range(4)]
+
+async def _control_motor(bus: can.interface.Bus, node_id:int) -> None:
     """Node ID must match `<odrv>.axis0.config.can.node_id`. The default is 0."""
     # Put axis into closed loop control state
     _set_control_loop_state(bus, node_id)
     _set_velocity(bus, node_id, 1.0)
     # Print encoder feedback
-    _print_encoder_feedback(bus, node_id)
+    await _print_encoder_feedback(bus, node_id)
 
 
 def _flush_bus(bus: can.interface.Bus) -> None:
@@ -52,22 +59,30 @@ def _set_velocity(bus: can.interface.Bus, node_id:int, velocity: float) -> None:
     ))
 
 
-def _print_encoder_feedback(bus: can.interface.Bus, node_id:int) -> None:
+async def _print_encoder_feedback(bus: can.interface.Bus, node_id:int) -> None:
     for msg in bus:
         if msg.arbitration_id == (node_id << 5 | 0x09): # 0x09: Get_Encoder_Estimates
             pos, vel = struct.unpack('<ff', bytes(msg.data))
-            print(f"pos: {pos:.3f} [turns], vel: {vel:.3f} [turns/s]")
+            print(f"{node_id=} pos: {pos:.3f} [turns], vel: {vel:.3f} [turns/s]")
+            await asyncio.sleep(0.1)
 
+def _stop_all_motors(bus: can.interface.Bus) -> None:
+    for motor in _ALL_MOTORS:
+        _set_velocity(bus, motor.node_id, 0.0)
+
+
+async def main(bus: can.interface.Bus) -> None:
+    tasks = [asyncio.create_task(_control_motor(bus, motor.node_id)) for motor in _ALL_MOTORS]
+    await asyncio.gather(*tasks)
 
 if __name__ == "__main__":
     bus = can.interface.Bus("can0", bustype="socketcan")
-    node_id = 1
     _flush_bus(bus)
     try:
         print("Starting motor control")
-        _control_motor(bus, node_id)
+        asyncio.run(main(bus))
     except KeyboardInterrupt:
-        _set_velocity(bus, node_id, 0.0)
+        _stop_all_motors(bus)
         bus.shutdown()
 
     print("Shutting down")
