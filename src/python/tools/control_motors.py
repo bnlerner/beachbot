@@ -25,8 +25,6 @@ async def _control_motor(bus: can.interface.Bus, node_id:int) -> None:
     # Put axis into closed loop control state
     _set_control_loop_state(bus, node_id)
     _set_velocity(bus, node_id, 1.0)
-    # Print encoder feedback
-    await _print_encoder_feedback(bus, node_id)
 
 
 def _flush_bus(bus: can.interface.Bus) -> None:
@@ -59,12 +57,12 @@ def _set_velocity(bus: can.interface.Bus, node_id:int, velocity: float) -> None:
     ))
 
 
-async def _print_encoder_feedback(bus: can.interface.Bus, node_id:int) -> None:
+def _print_encoder_feedback(bus: can.interface.Bus) -> None:
     for msg in bus:
-        if msg.arbitration_id == (node_id << 5 | 0x09): # 0x09: Get_Encoder_Estimates
-            pos, vel = struct.unpack('<ff', bytes(msg.data))
-            print(f"{node_id=} pos: {pos:.3f} [turns], vel: {vel:.3f} [turns/s]")
-            await asyncio.sleep(0.1)
+        for node_id in range(4):
+            if msg.arbitration_id == (node_id << 5 | 0x09): # 0x09: Get_Encoder_Estimates
+                pos, vel = struct.unpack('<ff', bytes(msg.data))
+                print(f"{msg=} pos: {pos:.3f} [turns], vel: {vel:.3f} [turns/s]")
 
 def _stop_all_motors(bus: can.interface.Bus) -> None:
     for motor in _ALL_MOTORS:
@@ -74,6 +72,8 @@ def _stop_all_motors(bus: can.interface.Bus) -> None:
 async def main(bus: can.interface.Bus) -> None:
     tasks = [asyncio.create_task(_control_motor(bus, motor.node_id)) for motor in _ALL_MOTORS]
     await asyncio.gather(*tasks)
+    # Print encoder feedback
+    await _print_encoder_feedback(bus)
 
 if __name__ == "__main__":
     bus = can.interface.Bus("can0", bustype="socketcan")
@@ -82,7 +82,8 @@ if __name__ == "__main__":
         print("Starting motor control")
         asyncio.run(main(bus))
     except KeyboardInterrupt:
-        _stop_all_motors(bus)
-        bus.shutdown()
+        pass
 
+    _stop_all_motors(bus)
+    bus.shutdown()
     print("Shutting down")
