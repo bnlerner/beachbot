@@ -14,11 +14,17 @@ import pydantic
 import can
 import struct
 
+
 class Motor(pydantic.BaseModel):
     node_id: int
     location: str
 
+_HEARTBEAT_CMD_ID = 0x01
 _ALL_MOTORS = [Motor(node_id=id, location="blah") for id in range(4)]
+# Get_Encoder_Estimates
+_ENCODER_ESTIMATES_ID = 0x09
+
+
 
 async def _control_motor(bus: can.interface.Bus, node_id:int) -> None:
     """Node ID must match `<odrv>.axis0.config.can.node_id`. The default is 0."""
@@ -56,13 +62,19 @@ def _set_velocity(bus: can.interface.Bus, node_id:int, velocity: float) -> None:
         is_extended_id=False
     ))
 
+def _print_heartbeat(bus: can.interface.Bus) -> None:
+    for msg in bus:
+        for node_id in range(4):
+            if msg.arbitration_id == (node_id << 5 | _HEARTBEAT_CMD_ID):
+                error, state, result, traj_done = struct.unpack('<IBBB', bytes(msg.data[:7]))
+                print(f"{node_id=}, {error=}, {state=}, {result=}, {traj_done=}")
 
 def _print_encoder_feedback(bus: can.interface.Bus) -> None:
     for msg in bus:
         for node_id in range(4):
-            if msg.arbitration_id == (node_id << 5 | 0x09): # 0x09: Get_Encoder_Estimates
+            if msg.arbitration_id == (node_id << 5 | _ENCODER_ESTIMATES_ID):
                 pos, vel = struct.unpack('<ff', bytes(msg.data))
-                print(f"{msg=} pos: {pos:.3f} [turns], vel: {vel:.3f} [turns/s]")
+                print(f"{node_id=} pos: {pos:.3f} [turns], vel: {vel:.3f} [turns/s]")
 
 def _stop_all_motors(bus: can.interface.Bus) -> None:
     for motor in _ALL_MOTORS:
@@ -73,7 +85,7 @@ async def main(bus: can.interface.Bus) -> None:
     tasks = [asyncio.create_task(_control_motor(bus, motor.node_id)) for motor in _ALL_MOTORS]
     await asyncio.gather(*tasks)
     # Print encoder feedback
-    await _print_encoder_feedback(bus)
+    _print_encoder_feedback(bus)
 
 if __name__ == "__main__":
     bus = can.interface.Bus("can0", bustype="socketcan")
