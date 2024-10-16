@@ -1,3 +1,4 @@
-odrive==0.6.8
+odrive==0.6.9.post0
 pydantic==2.9.2
 python-can==4.4.2
+
