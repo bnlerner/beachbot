@@ -26,4 +26,5 @@ gh repo clone havenrobotics/beachbot && \
 git config --global user.email "bnlerner@gmail.com" && \
 git config --global user.name "Brian Lerner" && \
 cd beachbot && \ pip3 install -r env/python_requirements/requirements.txt && \
-sudo reboot 
+sudo bash -c "curl https://cdn.odriverobotics.com/files/odrive-udev-rules.rules > /etc/udev/rules.d/91-odrive.rules && udevadm control --reload-rules && udevadm trigger"
+sudo reboot
