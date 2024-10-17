@@ -19,13 +19,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import motor_config
 from drivers.can import connection, enums, messages
-
-_ALL_MOTORS = [
-    motor_config.MotorConfig(node_id=0, location=motor_config.MotorLocation.FRONT_LEFT),
-    motor_config.MotorConfig(node_id=1, location=motor_config.MotorLocation.FRONT_RIGHT),
-    motor_config.MotorConfig(node_id=2, location=motor_config.MotorLocation.REAR_LEFT),
-    motor_config.MotorConfig(node_id=3, location=motor_config.MotorLocation.REAR_RIGHT),
-]
+from ipc import session
 
 
 async def _control_motor(bus: connection.CANSimple, motor: motor_config.MotorConfig) -> None:
@@ -71,13 +65,13 @@ async def _print_encoder_data(msg: messages.EncoderEstimatesMessage) -> None:
 
 
 async def _stop_all_motors(bus: connection.CANSimple) -> None:
-    for motor in _ALL_MOTORS:
+    for motor in session.get_robot_motor_configs("beachbot-1"):
         await _set_velocity(bus, motor, 0.0)
 
 
 async def main(bus: connection.CANSimple) -> None:
     try:
-        for motor in _ALL_MOTORS:
+        for motor in session.get_robot_motor_configs("beachbot-1"):
             await _control_motor(bus, motor)
         # Print encoder feedback
         await _print_encoder_feedback(bus)
@@ -91,5 +85,5 @@ if __name__ == "__main__":
     bus = connection.CANSimple(enums.CANInterface.ODRIVE, enums.BusType.SOCKET_CAN)
     print("Starting motor control")
     asyncio.run(main(bus))
-    
+
     print("Shutting down")
