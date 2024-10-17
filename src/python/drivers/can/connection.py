@@ -7,9 +7,9 @@ import asyncio
 ODriveCanMessageT = TypeVar("ODriveCanMessageT", bound="messages.OdriveCanMessage")
 
 
-class CANSimpleListener(can.Listener):
+class CANSimpleListener(can.Listener, Generic[ODriveCanMessageT]):
 
-    def __init__(self, msg_class: ODriveCanMessageT, callback: Callable):
+    def __init__(self, msg_class: Type[ODriveCanMessageT], callback: Callable):
         self._msg_class = msg_class
         self._callback = callback
         self._bus_error: Optional[Exception] = None
@@ -70,8 +70,7 @@ class CANSimple:
                 raise TypeError(
                     "Callbacks registered must be a coroutine function"
                 )
-            # msg_cls is not a valid type hint because it only exists at runtime.
-             # type: ignore[valid-type]
+
             self._listeners.append(CANSimpleListener(msg_cls, callback))
 
     async def send(self, msg: messages.OdriveCanMessage) -> None:
