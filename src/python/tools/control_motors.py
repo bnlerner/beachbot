@@ -46,17 +46,15 @@ async def _set_velocity(bus: connection.CANSimple, motor: motor_config.MotorConf
     await bus.send(vel_msg)
 
 
-async def _print_heartbeat(bus: connection.CANSimple) -> None:
-    bus.register_callbacks((messages.HeartbeatMessage, _print_heartbeat_msg))
-    await bus.listen()
-
-
 async def _print_heartbeat_msg(msg: messages.HeartbeatMessage) -> None:
     print(f"{msg.node_id=}, {msg.axis_error=}, {msg.procedure_result=}, {msg.axis_state=}, {msg.trajectory_done_flag=}")
 
 
-async def _print_encoder_feedback(bus: connection.CANSimple) -> None:
-    bus.register_callbacks((messages.EncoderEstimatesMessage, _print_encoder_data), (messages.HeartbeatMessage, _print_heartbeat_msg))
+async def _listen_to_cyclic_traffic(bus: connection.CANSimple) -> None:
+    bus.register_callbacks(
+        (messages.EncoderEstimatesMessage, _print_encoder_data),
+        (messages.HeartbeatMessage, _print_heartbeat_msg),
+    )
     await bus.listen()
 
 
@@ -74,7 +72,7 @@ async def main(bus: connection.CANSimple) -> None:
         for motor in session.get_robot_motor_configs("beachbot-1"):
             await _control_motor(bus, motor)
         # Print encoder feedback
-        await _print_encoder_feedback(bus)
+        await _listen_to_cyclic_traffic(bus)
     except KeyboardInterrupt:
         pass
     finally:
