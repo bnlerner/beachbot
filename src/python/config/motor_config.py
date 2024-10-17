@@ -17,6 +17,6 @@ class MotorConfig(pydantic.BaseModel):
     @property
     def direction(self) -> Literal[1, -1]:
         if self.location in (MotorLocation.FRONT_LEFT, MotorLocation.REAR_LEFT):
-            return 1
-        else:
             return -1
+        else:
+            return 1

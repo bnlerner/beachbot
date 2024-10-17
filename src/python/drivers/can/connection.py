@@ -1,9 +1,5 @@
-import odrive  # type: ignore[import-untyped]
-import struct
 from typing import Tuple, Callable, Optional, List, Type, Generic, TypeVar
 import can
-import cantools
-from odrive import enums as odrive_enums
 from drivers.can import messages, enums
 from typing_helpers import req
 import asyncio
@@ -11,11 +7,10 @@ import asyncio
 ODriveCanMessageT = TypeVar("ODriveCanMessageT", bound="messages.OdriveCanMessage")
 
 
-class CANSimpleListener(can.Listener, Generic[ODriveCanMessageT]):
+class CANSimpleListener(can.Listener):
 
-    msg_class: Type[ODriveCanMessageT]
-
-    def __init__(self, callback: Optional[Callable] = None):
+    def __init__(self, msg_class: ODriveCanMessageT, callback: Callable):
+        self._msg_class = msg_class
         self._callback = callback
         self._bus_error: Optional[Exception] = None
 
@@ -23,7 +18,7 @@ class CANSimpleListener(can.Listener, Generic[ODriveCanMessageT]):
         self._can_msg_queue: asyncio.Queue = asyncio.Queue()
 
     def on_message_received(self, msg: can.Message) -> None:
-        if not self._is_stopped and self.msg_class.matches(msg):
+        if not self._is_stopped and self._msg_class.matches(msg):
             self._can_msg_queue.put_nowait(msg)
 
     def on_error(self, exc: Exception) -> None:
@@ -31,19 +26,20 @@ class CANSimpleListener(can.Listener, Generic[ODriveCanMessageT]):
 
     async def get_message(self) -> ODriveCanMessageT:
         can_msg = await self._can_msg_queue.get()
-        return self.msg_class.from_can_message(can_msg)
+        return self._msg_class.from_can_message(can_msg)
 
     async def wait_for_message(self, duration: float) -> Optional[ODriveCanMessageT]:
         try:
             can_msg = await asyncio.wait_for(self._can_msg_queue.get(), duration)
-            return self.msg_class.from_can_message(can_msg)
+            return self._msg_class.from_can_message(can_msg)
         except TimeoutError:
             return None
 
     async def listen(self) -> None:
+        print(f"starting to listen with {self._msg_class=}, {self._callback=}, {self._can_msg_queue=}")
         while self._bus_error is None:
-            if msg := self.wait_for_message(0.01):
-                await req(self._callback)(msg)
+            if msg := await self.wait_for_message(0.01):
+                await self._callback(msg)
 
         self.stop()
         raise self._bus_error
@@ -70,8 +66,13 @@ class CANSimple:
     def register_callbacks(self, *msg_cls_callbacks: Tuple[Type[messages.OdriveCanMessage], Callable]) -> None:
         """Registers callbacks on receiving a message."""
         for msg_cls, callback in msg_cls_callbacks:
+            if not asyncio.iscoroutinefunction(callback):
+                raise TypeError(
+                    "Callbacks registered must be a coroutine function"
+                )
             # msg_cls is not a valid type hint because it only exists at runtime.
-            self._listeners.append(CANSimpleListener[msg_cls](callback=callback)) # type: ignore[valid-type]
+             # type: ignore[valid-type]
+            self._listeners.append(CANSimpleListener(msg_cls, callback))
 
     async def send(self, msg: messages.OdriveCanMessage) -> None:
         can_msg = msg.as_can_message()
