@@ -38,6 +38,11 @@ async def _set_control_loop_state(bus: connection.CANSimple, node_id:int) -> Non
     await bus.send(axis_msg)
     print("finished sending")
 
+async def _set_velocity(bus: connection.CANSimple, motor: motor_config.MotorConfig, velocity: float) -> None:
+    """Sets velocity in turns/s"""
+    signed_velocity = motor.direction * velocity
+    vel_msg = messages.SetVelocityMessage(motor.node_id, velocity=signed_velocity)
+    await bus.send(vel_msg)
 
 async def _set_velocity(bus: connection.CANSimple, motor: motor_config.MotorConfig, velocity: float) -> None:
     """Sets velocity in turns/s"""
