@@ -19,13 +19,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import motor_config
 from drivers.can import connection, enums, messages
-
-_ALL_MOTORS = [
-    motor_config.MotorConfig(node_id=0, location=motor_config.MotorLocation.FRONT_LEFT),
-    motor_config.MotorConfig(node_id=1, location=motor_config.MotorLocation.FRONT_RIGHT),
-    motor_config.MotorConfig(node_id=2, location=motor_config.MotorLocation.REAR_LEFT),
-    motor_config.MotorConfig(node_id=3, location=motor_config.MotorLocation.REAR_RIGHT),
-]
+from ipc import session
 
 
 async def _control_motor(bus: connection.CANSimple, motor: motor_config.MotorConfig) -> None:
@@ -44,6 +38,11 @@ async def _set_control_loop_state(bus: connection.CANSimple, node_id:int) -> Non
     await bus.send(axis_msg)
     print("finished sending")
 
+async def _set_velocity(bus: connection.CANSimple, motor: motor_config.MotorConfig, velocity: float) -> None:
+    """Sets velocity in turns/s"""
+    signed_velocity = motor.direction * velocity
+    vel_msg = messages.SetVelocityMessage(motor.node_id, velocity=signed_velocity)
+    await bus.send(vel_msg)
 
 async def _set_velocity(bus: connection.CANSimple, motor: motor_config.MotorConfig, velocity: float) -> None:
     """Sets velocity in turns/s"""
@@ -52,35 +51,25 @@ async def _set_velocity(bus: connection.CANSimple, motor: motor_config.MotorConf
     await bus.send(vel_msg)
 
 
-async def _print_heartbeat(bus: connection.CANSimple) -> None:
-    bus.register_callbacks((messages.HeartbeatMessage, _print_heartbeat_msg))
+async def _listen_to_cyclic_traffic(bus: connection.CANSimple) -> None:
+    bus.register_callbacks(
+        (messages.EncoderEstimatesMessage, print),
+        (messages.HeartbeatMessage, print),
+    )
     await bus.listen()
-
-
-async def _print_heartbeat_msg(msg: messages.HeartbeatMessage) -> None:
-    print(f"{msg.node_id=}, {msg.axis_error=}, {msg.procedure_result=}, {msg.axis_state=}, {msg.trajectory_done_flag=}")
-
-
-async def _print_encoder_feedback(bus: connection.CANSimple) -> None:
-    bus.register_callbacks((messages.EncoderEstimatesMessage, _print_encoder_data), (messages.HeartbeatMessage, _print_heartbeat_msg))
-    await bus.listen()
-
-
-async def _print_encoder_data(msg: messages.EncoderEstimatesMessage) -> None:
-    print(f"{msg.arbitration_id=}, pos: {msg.pos_estimate:.3f} [turns], vel: {msg.vel_estimate:.3f} [turns/s]")
 
 
 async def _stop_all_motors(bus: connection.CANSimple) -> None:
-    for motor in _ALL_MOTORS:
+    for motor in session.get_robot_motor_configs("beachbot-1"):
         await _set_velocity(bus, motor, 0.0)
 
 
 async def main(bus: connection.CANSimple) -> None:
     try:
-        for motor in _ALL_MOTORS:
+        for motor in session.get_robot_motor_configs("beachbot-1"):
             await _control_motor(bus, motor)
         # Print encoder feedback
-        await _print_encoder_feedback(bus)
+        await _listen_to_cyclic_traffic(bus)
     except KeyboardInterrupt:
         pass
     finally:
@@ -91,5 +80,5 @@ if __name__ == "__main__":
     bus = connection.CANSimple(enums.CANInterface.ODRIVE, enums.BusType.SOCKET_CAN)
     print("Starting motor control")
     asyncio.run(main(bus))
-    
+
     print("Shutting down")
