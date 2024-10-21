@@ -44,20 +44,15 @@ async def _set_velocity(bus: connection.CANSimple, motor: motor_config.MotorConf
     vel_msg = messages.SetVelocityMessage(motor.node_id, velocity=signed_velocity)
     await bus.send(vel_msg)
 
-async def _set_velocity(bus: connection.CANSimple, motor: motor_config.MotorConfig, velocity: float) -> None:
-    """Sets velocity in turns/s"""
-    signed_velocity = motor.direction * velocity
-    vel_msg = messages.SetVelocityMessage(motor.node_id, velocity=signed_velocity)
-    await bus.send(vel_msg)
-
-
 async def _listen_to_cyclic_traffic(bus: connection.CANSimple) -> None:
     bus.register_callbacks(
-        (messages.EncoderEstimatesMessage, print),
-        (messages.HeartbeatMessage, print),
+        (messages.EncoderEstimatesMessage, _async_print_msg),
+        (messages.HeartbeatMessage, _async_print_msg),
     )
     await bus.listen()
 
+async def _async_print_msg(msg: messages.OdriveCanMessage) -> None:
+    print(msg)
 
 async def _stop_all_motors(bus: connection.CANSimple) -> None:
     for motor in session.get_robot_motor_configs("beachbot-1"):
