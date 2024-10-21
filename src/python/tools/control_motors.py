@@ -46,20 +46,12 @@ async def _set_velocity(bus: connection.CANSimple, motor: motor_config.MotorConf
     await bus.send(vel_msg)
 
 
-async def _print_heartbeat_msg(msg: messages.HeartbeatMessage) -> None:
-    print(f"{msg.node_id=}, {msg.axis_error=}, {msg.procedure_result=}, {msg.axis_state=}, {msg.trajectory_done_flag=}")
-
-
 async def _listen_to_cyclic_traffic(bus: connection.CANSimple) -> None:
     bus.register_callbacks(
-        (messages.EncoderEstimatesMessage, _print_encoder_data),
-        (messages.HeartbeatMessage, _print_heartbeat_msg),
+        (messages.EncoderEstimatesMessage, print),
+        (messages.HeartbeatMessage, print),
     )
     await bus.listen()
-
-
-async def _print_encoder_data(msg: messages.EncoderEstimatesMessage) -> None:
-    print(f"{msg.arbitration_id=}, pos: {msg.pos_estimate:.3f} [turns], vel: {msg.vel_estimate:.3f} [turns/s]")
 
 
 async def _stop_all_motors(bus: connection.CANSimple) -> None:
