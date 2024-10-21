@@ -89,7 +89,7 @@ class HeartbeatMessage(OdriveCanMessage):
         msg_data_values = struct.unpack('<IBBB', bytes(msg.data[:7]))
         self.axis_error, self.axis_state, self.procedure_result, self.trajectory_done_flag = msg_data_values
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         identification_str = f"{self.arbitration_id=}, {self.node_id=}"
         values_str = f"{self.axis_error=}, {self.procedure_result=}, {self.axis_state=}, {self.trajectory_done_flag=}"
         return f"{self.__class__.__name__} {identification_str}\n ({values_str})"
@@ -106,7 +106,7 @@ class EncoderEstimatesMessage(OdriveCanMessage):
     def _parse_can_msg_data(self, msg: can.Message) -> None:
         self.pos_estimate, self.vel_estimate = struct.unpack('<ff', bytes(msg.data))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         identification_str = f"{self.arbitration_id=}, {self.node_id=}"
         values_str = f"pos: {self.pos_estimate:.3f} [turns], vel: {self.vel_estimate:.3f} [turns/s]"
         return f"{self.__class__.__name__} {identification_str}\n ({values_str})"
