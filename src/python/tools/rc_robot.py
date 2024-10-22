@@ -5,6 +5,7 @@ import asyncio
 import sys
 import os
 from pynput import keyboard
+from typing import Optional, Union
 
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -20,7 +21,7 @@ class RCRobotNode(base_node.BaseNode):
 
         self.add_tasks(self._loop_and_no_nothing)
 
-    def _on_press(self, key: keyboard.Key):
+    def _on_press(self, key: Optional[Union[keyboard.Key, keyboard.KeyCode]]) -> None:
         try:
             if key == keyboard.Key.up:
                 print('Up arrow key pressed')
@@ -36,7 +37,7 @@ class RCRobotNode(base_node.BaseNode):
             print('special key {0} pressed'.format(key))
 
 
-    def _on_release(self, key: keyboard.Key) -> None:
+    def _on_release(self, key: Optional[Union[keyboard.Key, keyboard.KeyCode]]) -> None:
         if key == keyboard.Key.up:
             print('Up arrow key released')
         elif key == keyboard.Key.down:
@@ -50,7 +51,7 @@ class RCRobotNode(base_node.BaseNode):
         while True:
             await asyncio.sleep(10)
 
-    async def shutdown_hook(self):
+    async def shutdown_hook(self) -> None:
         self._rc_listener.stop()
 
 

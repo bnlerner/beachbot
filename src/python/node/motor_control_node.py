@@ -2,7 +2,8 @@ import asyncio
 from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 import sys
 import os
-from pynput import keyboard  # type: ignore[import-untyped]
+from pynput import keyboard
+from typing import Optional, Union
 
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -13,12 +14,13 @@ from drivers.can import connection, enums, messages
 from ipc import session
 from node import base_node
 
-# in turns per second
-_INITIAL_VELOCITY = 1.0
-
 
 class MotorControlNode(base_node.BaseNode):
-    """A Node to control the ODrive motor controllers via a CAN bus interface."""
+    """A Node to control the ODrive motor controllers via a CAN bus interface.
+    
+    NOTE: Requires setting the DISPLAY environment variable like so prior to running on beachbot
+    DISPLAY=":1" python3 src/python/node/motor_control_node.py
+    """
 
     def __init__(self) -> None:
         super().__init__()
@@ -28,7 +30,8 @@ class MotorControlNode(base_node.BaseNode):
         # RC control
         self._rc_listener = keyboard.Listener(on_press=self._on_press, on_release=self._on_release)
         self._rc_listener.start()
-        self._rc_velocity_generator = rc_velocity_generator.RCVelocityGenerator(self._motor_configs)
+        # Moves at 1.0 turns/s for any RC command
+        self._rc_velocity_generator = rc_velocity_generator.RCVelocityGenerator(1.0, self._motor_configs)
 
         self._can_bus.register_callbacks(
             (messages.EncoderEstimatesMessage, _async_print_msg),
@@ -58,14 +61,16 @@ class MotorControlNode(base_node.BaseNode):
         vel_msg = messages.SetVelocityMessage(motor.node_id, velocity=velocity)
         await self._can_bus.send(vel_msg)
 
-    def _on_press(self, key: keyboard.Key) -> None:
+    def _on_press(self, key: Optional[Union[keyboard.Key, keyboard.KeyCode]]) -> None:
         if key == keyboard.Key.esc:
             exit(0)
 
-        self._rc_velocity_generator.update(key, pressed=True)
+        if isinstance(key, keyboard.Key):
+            self._rc_velocity_generator.update(key, pressed=True)
 
-    def _on_release(self, key: keyboard.Key) -> None:
-        self._rc_velocity_generator.update(key, pressed=False)
+    def _on_release(self, key: Optional[Union[keyboard.Key, keyboard.KeyCode]]) -> None:
+        if isinstance(key, keyboard.Key):
+            self._rc_velocity_generator.update(key, pressed=False)
 
     async def _update_motor_velocity(self) -> None:
         while True:
