@@ -39,3 +39,6 @@ class MotorConfig(pydantic.BaseModel):
         node_id = motor_config_dict["axis0.config.can.node_id"]
 
         return MotorConfig(node_id=node_id, location=location)
+
+    def __hash__(self) -> int:
+        return hash((self.__class__, self.node_id))
