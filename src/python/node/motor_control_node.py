@@ -17,7 +17,7 @@ from node import base_node
 
 class MotorControlNode(base_node.BaseNode):
     """A Node to control the ODrive motor controllers via a CAN bus interface.
-    
+
     NOTE: Requires setting the DISPLAY environment variable like so prior to running on beachbot
     DISPLAY=":1" python3 src/python/node/motor_control_node.py
     """
@@ -44,18 +44,20 @@ class MotorControlNode(base_node.BaseNode):
         for motor in self._motor_configs:
             await self._send_velocity_cmd(motor, 0.0)
 
+        await self._set_axis_state(odrive_enums.AxisState.IDLE)
         self._can_bus.shutdown()
         self._rc_listener.stop()
 
     async def _set_closed_loop_axis_state(self) -> None:
+        await self._set_axis_state(odrive_enums.AxisState.CLOSED_LOOP_CONTROL)
+
+    async def _set_axis_state(self, axis_state: odrive_enums.AxisState) -> None:
         for motor in self._motor_configs:
-            axis_msg = messages.SetAxisStateMessage(
-                motor.node_id,
-                axis_state=odrive_enums.AxisState.CLOSED_LOOP_CONTROL.value
-            )
+            axis_msg = messages.SetAxisStateMessage(motor.node_id, axis_state=axis_state.value)
             await self._can_bus.send(axis_msg)
             # Wait for the motor to set and respond
             await asyncio.sleep(0.1)
+
 
     async def _send_velocity_cmd(self, motor: motor_config.MotorConfig, velocity: float) -> None:
         vel_msg = messages.SetVelocityMessage(motor.node_id, velocity=velocity)
@@ -76,6 +78,7 @@ class MotorControlNode(base_node.BaseNode):
         while True:
             for motor, velocity in self._rc_velocity_generator.velocities().items():
                 await self._send_velocity_cmd(motor, velocity)
+
             await asyncio.sleep(0.01)
 
 async def _async_print_msg(msg: messages.OdriveCanMessage) -> None:
