@@ -6,7 +6,7 @@ from config import motor_config
 
 
 class RCVelocityGenerator:
-    """"""
+    """Inputs a motor velocity and the motor configs and will output the motor velocities to respond to key presses."""
 
     def __init__(self, velocity: float, motor_configs: List[motor_config.MotorConfig]) -> None:
         self._velocity_default = velocity
