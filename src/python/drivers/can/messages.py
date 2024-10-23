@@ -1,8 +1,11 @@
 from __future__ import annotations
-import can
-from typing import Optional, Any, TypeVar, Type
+
 import struct
+from typing import Any, Optional, Type, TypeVar
+
+import can
 import pydantic
+from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 
 OdriveCanMessageT = TypeVar("OdriveCanMessageT", bound="OdriveCanMessage")
 
@@ -14,13 +17,13 @@ class _ArbitrationID(pydantic.BaseModel):
     @classmethod
     def from_can_message(cls, msg: can.Message) -> _ArbitrationID:
         return cls(
-            node_id=(msg.arbitration_id >> 5),
-            cmd_id=(msg.arbitration_id & 0b11111),
+            node_id=(msg.arbitration_id >> 5), cmd_id=(msg.arbitration_id & 0b11111)
         )
 
     @property
     def value(self) -> int:
-        return (self.node_id << 5 | self.cmd_id)
+        return self.node_id << 5 | self.cmd_id
+
 
 class OdriveCanMessage:
     cmd_id: int
@@ -46,10 +49,14 @@ class OdriveCanMessage:
         return cls.cmd_id == arbitration_id.cmd_id
 
     @classmethod
-    def from_can_message(cls: Type[OdriveCanMessageT], msg: can.Message) -> OdriveCanMessageT:
+    def from_can_message(
+        cls: Type[OdriveCanMessageT], msg: can.Message
+    ) -> OdriveCanMessageT:
         arbitration_id = _ArbitrationID.from_can_message(msg)
         if not cls.matches(msg):
-            raise ValueError(f"CAN message does not match the class desired {cls.__name__}!")
+            raise ValueError(
+                f"CAN message does not match the class desired {cls.__name__}!"
+            )
 
         message = cls(node_id=arbitration_id.node_id)
         message._parse_can_msg_data(msg)
@@ -73,6 +80,7 @@ class OdriveCanMessage:
 # CYCLIC MESSAGES ################################################################################################
 ##################################################################################################################
 
+
 class HeartbeatMessage(OdriveCanMessage):
     cmd_id = 0x01
 
@@ -86,13 +94,19 @@ class HeartbeatMessage(OdriveCanMessage):
     trajectory_done_flag: int
 
     def _parse_can_msg_data(self, msg: can.Message) -> None:
-        msg_data_values = struct.unpack('<IBBB', bytes(msg.data[:7]))
-        self.axis_error, self.axis_state, self.procedure_result, self.trajectory_done_flag = msg_data_values
+        msg_data_values = struct.unpack("<IBBB", bytes(msg.data[:7]))
+        (
+            self.axis_error,
+            self.axis_state,
+            self.procedure_result,
+            self.trajectory_done_flag,
+        ) = msg_data_values
 
     def __repr__(self) -> str:
         identification_str = f"{self.arbitration_id=}, {self.node_id=}"
         values_str = f"{self.axis_error=}, {self.procedure_result=}, {self.axis_state=}, {self.trajectory_done_flag=}"
         return f"{self.__class__.__name__} {identification_str}\n ({values_str})"
+
 
 class EncoderEstimatesMessage(OdriveCanMessage):
     cmd_id = 0x09
@@ -104,55 +118,89 @@ class EncoderEstimatesMessage(OdriveCanMessage):
     vel_estimate: float
 
     def _parse_can_msg_data(self, msg: can.Message) -> None:
-        self.pos_estimate, self.vel_estimate = struct.unpack('<ff', bytes(msg.data))
+        self.pos_estimate, self.vel_estimate = struct.unpack("<ff", bytes(msg.data))
 
     def __repr__(self) -> str:
         identification_str = f"{self.arbitration_id=}, {self.node_id=}"
         values_str = f"pos: {self.pos_estimate:.3f} [turns], vel: {self.vel_estimate:.3f} [turns/s]"
         return f"{self.__class__.__name__} {identification_str}\n ({values_str})"
 
+
 class IqMessage(OdriveCanMessage):
+    """A measure of the configured current.
+    TODO: Quantify with a setting?
+    """
+
     cmd_id = 0x14
-     # TODO: add data args and parse function.
+
+    # float32, starts at 0th byte, unit: Amperes
+    setpoint: float
+    # float32, starts at 4th byte, unit: Amperes
+    measured: float
+
+    def _parse_can_msg_data(self, msg: can.Message) -> None:
+        self.setpoint, self.measured = struct.unpack("<ff", bytes(msg.data))
+
 
 class ErrorMessage(OdriveCanMessage):
     cmd_id = 0x03
 
-    active_errors: int # starts at 0 byte, 4 byte, uint32
-    disarm_reason: int # starts at 4 byte, 4 byte, uint32
-     # TODO: add data args and parse function.
+    active_errors: int  # starts at 0 byte, 4 byte, uint32
+    disarm_reason: int  # starts at 4 byte, 4 byte, uint32
+
+    def _parse_can_msg_data(self, msg: can.Message) -> None:
+        msg_data_values = struct.unpack("<II", bytes(msg.data[:7]))
+        (
+            self.axis_error,
+            self.axis_state,
+            self.procedure_result,
+            self.trajectory_done_flag,
+        ) = msg_data_values
+
 
 class TemperatureMessage(OdriveCanMessage):
     cmd_id = 0x15
-     # TODO: add data args and parse function.
+
+    fet_temperature: float
+    motor_temperature: float
+
+    def _parse_can_msg_data(self, msg: can.Message) -> None:
+        self.setpoint, self.measured = struct.unpack("<ff", bytes(msg.data))
+
 
 class BusVoltageCurrentMessage(OdriveCanMessage):
     cmd_id = 0x17
-     # TODO: add data args and parse function.
+    # TODO: add data args and parse function.
+
 
 class TorquesMessage(OdriveCanMessage):
-    cmd_id = 0x1c
-     # TODO: add data args and parse function.
+    cmd_id = 0x1C
+    # TODO: add data args and parse function.
 
 
 ##################################################################################################################
 # COMMAND MESSAGES ###############################################################################################
 ##################################################################################################################
 
+
 class SetAxisStateMessage(OdriveCanMessage):
     cmd_id = 0x07
 
-    axis_state: int
+    # The requested axis state, defined in the odrive enums.
+    axis_state: enums.AxisState
 
     def _gen_can_msg_data(self) -> bytes:
         # 8 will set closed loop control mode
-        return struct.pack('<I', self.axis_state)
+        return struct.pack("<I", self.axis_state.value)
+
 
 class SetVelocityMessage(OdriveCanMessage):
-    cmd_id = 0x0d
+    cmd_id = 0x0D
 
+    # float32 starts at 0 byte, unit: rev/s
     velocity: float
+    # float32 starts at 4 byte, unit: Nm
+    torque: float
 
     def _gen_can_msg_data(self) -> bytes:
-        return struct.pack('<ff', self.velocity, 0.0)
-
+        return struct.pack("<ff", self.velocity, self.torque)

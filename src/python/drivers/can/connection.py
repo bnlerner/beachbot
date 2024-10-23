@@ -1,15 +1,17 @@
-from typing import Tuple, Callable, Optional, List, Type, Generic, TypeVar
-import can
-from drivers.can import messages, enums
-from typing_helpers import req
 import asyncio
+from typing import Callable, Generic, List, Optional, Tuple, Type, TypeVar
+
+import can
+
+from drivers.can import enums, messages
 
 ODriveCanMessageT = TypeVar("ODriveCanMessageT", bound="messages.OdriveCanMessage")
 
 
 class CANSimpleListener(can.Listener, Generic[ODriveCanMessageT]):
-
-    def __init__(self, msg_class: Type[ODriveCanMessageT], *, callback: Optional[Callable] = None):
+    def __init__(
+        self, msg_class: Type[ODriveCanMessageT], *, callback: Optional[Callable] = None
+    ):
         self._msg_class = msg_class
         self._callback = callback
         self._bus_error: Optional[Exception] = None
@@ -53,23 +55,22 @@ class CANSimple:
     with the motors.
     """
 
-    def __init__(self, can_interface: enums.CANInterface, bustype: enums.BusType) -> None:
-        self._can_bus = can.interface.Bus(
-            can_interface.value,
-            interface=bustype.value
-        )
+    def __init__(
+        self, can_interface: enums.CANInterface, bustype: enums.BusType
+    ) -> None:
+        self._can_bus = can.interface.Bus(can_interface.value, interface=bustype.value)
         self._flush_bus()
         self._notifier: Optional[can.Notifier] = None
         self._listeners: List[CANSimpleListener] = []
         self._listen_tasks: List[asyncio.Task] = []
 
-    def register_callbacks(self, *msg_cls_callbacks: Tuple[Type[messages.OdriveCanMessage], Callable]) -> None:
+    def register_callbacks(
+        self, *msg_cls_callbacks: Tuple[Type[messages.OdriveCanMessage], Callable]
+    ) -> None:
         """Registers callbacks on receiving a message."""
         for msg_cls, callback in msg_cls_callbacks:
             if not asyncio.iscoroutinefunction(callback):
-                raise TypeError(
-                    "Callbacks registered must be a coroutine function"
-                )
+                raise TypeError("Callbacks registered must be a coroutine function")
 
             self._listeners.append(CANSimpleListener(msg_cls, callback=callback))
 
@@ -82,7 +83,7 @@ class CANSimple:
     async def listen(self) -> None:
         loop = asyncio.get_running_loop()
         self._notifier = can.Notifier(self._can_bus, self._listeners, loop=loop)
-        self._listen_tasks =[
+        self._listen_tasks = [
             asyncio.create_task(listener.listen()) for listener in self._listeners
         ]
         await asyncio.gather(*self._listen_tasks)
@@ -96,7 +97,7 @@ class CANSimple:
 
     def _flush_bus(self) -> None:
         # Flush CAN RX buffer so there are no more old pending messages
-        while not (self._can_bus.recv(timeout=0) is None):
+        while self._can_bus.recv(timeout=0) is not None:
             pass
 
     def _clean_up_can_bus(self) -> None:

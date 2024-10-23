@@ -1,9 +1,12 @@
 from __future__ import annotations
-from typing import Literal
-import pydantic
+
 import enum
-import pathlib
 import json
+import pathlib
+from typing import Literal
+
+import pydantic
+
 
 class MotorLocation(enum.Enum):
     FRONT_LEFT = "FRONT_LEFT"

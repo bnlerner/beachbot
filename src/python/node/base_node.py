@@ -1,6 +1,6 @@
-from typing import Callable, List, Optional
 import asyncio
 import functools
+from typing import Callable, List, Optional
 
 
 class BaseNode:
@@ -58,7 +58,7 @@ class BaseNode:
             gather_exceptions.append(exception)
 
         for exception in gather_exceptions:
-            if isinstance(exception, asyncio.CancelledError) or isinstance(exception, KeyboardInterrupt):
+            if isinstance(exception, (asyncio.CancelledError, KeyboardInterrupt)):
                 pass
             else:
                 raise exception
