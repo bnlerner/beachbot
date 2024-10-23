@@ -1,10 +1,6 @@
 from __future__ import print_function
 
-import odrive # type: ignore[import-untyped]
-from odrive import enums
-import time
-import math
-
+import odrive  # type: ignore[import-untyped]
 
 
 def main(drive: odrive.ODrive) -> None:
@@ -37,6 +33,7 @@ def main(drive: odrive.ODrive) -> None:
     #     print("goto " + str(int(setpoint)))
     #     my_drive.axis0.controller.input_pos = setpoint
     #     time.sleep(0.01)
+
 
 if __name__ == "__main__":
     # Find a connected ODrive (this will block until you connect one)
