@@ -1,0 +1,85 @@
+# Same as Black.
+line-length = 88
+
+# Assume Python 3.12 or greater
+target-version = "py312"
+
+# Require ruff version so codecheck and ruff extension must run the same version
+required-version = "0.1.8"
+
+[lint]
+# Pyflakes (`F`) and a subset of the pycodestyle (`E`) enabled by default
+extend-select = [
+    # Rule sets
+    "I", # Isort
+    "W", # Pycodestyle warnings
+    "B", # Bugbear
+    "TID", # Flake8-tidy-imports
+    "PL", # Pylint
+    "N", # PEP8-naming
+]
+
+ignore = [
+    # Exception chaining is default in modern python, and this makes error handling
+    # more verbose.
+    "B904",
+    # We are ok with cached instance methods due to performance benefits.
+    "B019",
+    # Ignore function-call-in-default-argument since useful.
+    "B008",
+    # Ignore assert-false because using assert false in tests seems reasonable, and we
+    # do not support running tests in optimized mode.
+    "B011",
+    # Ignore magic-value-comparison as instances mainly in tests (e.g., confidence
+    # threshold) or known value (e.g., status code, 0.0).
+    "PLR2004",
+    # Ignore redefined-loop-name because readability is often improved without adding
+    # intermediary variables.
+    "PLW2901",
+    # Ignore global-statement because we are ok with globals in specific situations.
+    "PLW0603",
+    # Ignore collapsible-else-if because it harms readability more often than not.
+    "PLR5501",
+    # Ignore repeated-equality-comparison because readability is harmed in some cases.
+    "PLR1714",
+    # Ignore lowercase function names, since we use capitals for HTTP endpoints.
+    "N802",
+    # Igore lowercase variables in functions, since we often capitalize constants
+    # in tests.
+    "N806",
+]
+
+# Disable bugbear and pylint automatic fixes, as these can lead to type errors
+unfixable = ["B", "PL"]
+
+[lint.pylint]
+# Pylint uses simple threshold rules to evaluate code complexity. We adjust these
+# thresholds to only catch egregious coding practices, while giving us enough
+# flexibility to avoid false positives in reasonable cases.
+max-args = 15
+max-returns = 15
+max-branches = 20
+max-statements = 75
+max-public-methods = 20
+max-bool-expr = 5
+max-positional-args = 5
+
+[lint.isort]
+split-on-trailing-comma = false
+
+[lint.extend-per-file-ignores]
+# Ignore unused import and import * rules in inits, because these flag import
+# statements we want to keep.
+"__init__.py" = ["F401", "F403"]
+
+[format]
+skip-magic-trailing-comma = true
+
+[lint.pep8-naming]
+# Ensure third-party classmethod decorators use 'cls' as the first argument.
+classmethod-decorators = [
+    "pydantic.validator",
+    "pydantic.root_validator",
+    "sqlalchemy.orm.declared_attr",
+    "sqlalchemy.orm.declared_attr.directive"
+]
