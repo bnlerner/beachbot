@@ -24,7 +24,6 @@ class _ArbitrationID(pydantic.BaseModel):
 
 class OdriveCanMessage:
     cmd_id: int
-    wait_for_response: bool = False
 
     def __init__(self, node_id: int, **kwargs: Any):
         self._node_id = node_id
@@ -142,7 +141,6 @@ class TorquesMessage(OdriveCanMessage):
 
 class SetAxisStateMessage(OdriveCanMessage):
     cmd_id = 0x07
-    wait_for_response = True
 
     axis_state: int
 
@@ -152,7 +150,6 @@ class SetAxisStateMessage(OdriveCanMessage):
 
 class SetVelocityMessage(OdriveCanMessage):
     cmd_id = 0x0d
-    wait_for_response = True
 
     velocity: float
 

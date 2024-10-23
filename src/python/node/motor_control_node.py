@@ -3,7 +3,8 @@ from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 import sys
 import os
 from pynput import keyboard
-from typing import Optional, Union
+from typing import Optional, Union, DefaultDict
+import collections
 
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,10 +33,11 @@ class MotorControlNode(base_node.BaseNode):
         self._rc_listener.start()
         # Moves at 1.0 turns/s for any RC command
         self._rc_velocity_generator = rc_velocity_generator.RCVelocityGenerator(1.0, self._motor_configs)
+        self._motor_axis_state: DefaultDict[int, int] = collections.defaultdict(lambda: -1)
 
         self._can_bus.register_callbacks(
             (messages.EncoderEstimatesMessage, _async_print_msg),
-            (messages.HeartbeatMessage, _async_print_msg),
+            (messages.HeartbeatMessage, self._set_axis_state_from_heartbeat),
         )
         self.add_tasks(self._set_closed_loop_axis_state, self._update_motor_velocity, self._can_bus.listen)
 
@@ -55,9 +57,17 @@ class MotorControlNode(base_node.BaseNode):
         for motor in self._motor_configs:
             axis_msg = messages.SetAxisStateMessage(motor.node_id, axis_state=axis_state.value)
             await self._can_bus.send(axis_msg)
-            # Wait for the motor to set and respond
-            await asyncio.sleep(0.1)
+        
+        # Wait for all motors to set and respond
+        await self._wait_for_closed_loop_axis_state()
 
+    async def _wait_for_closed_loop_axis_state(self) -> None:
+        closed_loop_state = odrive_enums.AxisState.CLOSED_LOOP_CONTROL.value
+        while True:
+            if all(self._motor_axis_state[motor.node_id] == closed_loop_state for motor in self._motor_configs):
+                break
+            
+            await asyncio.sleep(0.01)
 
     async def _send_velocity_cmd(self, motor: motor_config.MotorConfig, velocity: float) -> None:
         vel_msg = messages.SetVelocityMessage(motor.node_id, velocity=velocity)
@@ -80,6 +90,9 @@ class MotorControlNode(base_node.BaseNode):
                 await self._send_velocity_cmd(motor, velocity)
 
             await asyncio.sleep(0.01)
+
+    async def _set_axis_state_from_heartbeat(self, msg: messages.HeartbeatMessage) -> None:
+        self._motor_axis_state[msg.node_id] = msg.axis_state
 
 async def _async_print_msg(msg: messages.OdriveCanMessage) -> None:
     print(msg)

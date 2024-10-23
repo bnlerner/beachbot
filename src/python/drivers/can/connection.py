@@ -9,7 +9,7 @@ ODriveCanMessageT = TypeVar("ODriveCanMessageT", bound="messages.OdriveCanMessag
 
 class CANSimpleListener(can.Listener, Generic[ODriveCanMessageT]):
 
-    def __init__(self, msg_class: Type[ODriveCanMessageT], callback: Callable):
+    def __init__(self, msg_class: Type[ODriveCanMessageT], *, callback: Optional[Callable] = None):
         self._msg_class = msg_class
         self._callback = callback
         self._bus_error: Optional[Exception] = None
@@ -36,10 +36,10 @@ class CANSimpleListener(can.Listener, Generic[ODriveCanMessageT]):
             return None
 
     async def listen(self) -> None:
-        print(f"starting to listen with {self._msg_class=}, {self._callback=}, {self._can_msg_queue=}")
         while self._bus_error is None:
             if msg := await self.wait_for_message(0.01):
-                await self._callback(msg)
+                if self._callback:
+                    await self._callback(msg)
 
         self.stop()
         raise self._bus_error
@@ -71,9 +71,10 @@ class CANSimple:
                     "Callbacks registered must be a coroutine function"
                 )
 
-            self._listeners.append(CANSimpleListener(msg_cls, callback))
+            self._listeners.append(CANSimpleListener(msg_cls, callback=callback))
 
     async def send(self, msg: messages.OdriveCanMessage) -> None:
+        """Sends a CAN message."""
         can_msg = msg.as_can_message()
         self._can_bus.send(can_msg)
         await asyncio.sleep(0)
