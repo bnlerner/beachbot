@@ -1,8 +1,8 @@
 # Same as Black.
 line-length = 88
 
-# Assume Python 3.11 or greater
-target-version = "py311"
+# Assume Python 3.12 or greater
+target-version = "py312"
 
 # Require ruff version so codecheck and ruff extension must run the same version
 required-version = "0.1.8"
@@ -25,7 +25,7 @@ ignore = [
     "B904",
     # We are ok with cached instance methods due to performance benefits.
     "B019",
-    # Ignore function-call-in-default-argument since useful with phys functions.
+    # Ignore function-call-in-default-argument since useful.
     "B008",
     # Ignore assert-false because using assert false in tests seems reasonable, and we
     # do not support running tests in optimized mode.
@@ -65,7 +65,6 @@ max-bool-expr = 5
 max-positional-args = 5
 
 [lint.isort]
-known-first-party = ["built_lib", "potomac", "sinai", "marianactl", "cirrus"]
 split-on-trailing-comma = false
 
 [lint.extend-per-file-ignores]
