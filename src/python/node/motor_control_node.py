@@ -96,4 +96,8 @@ async def _async_print_msg(msg: can_messages.OdriveCanMessage) -> None:
 
 if __name__ == "__main__":
     node = MotorControlNode()
-    node.start()
+    try:
+        node.start()
+    except KeyboardInterrupt:
+        # Little trick to prevent ^C or ^Z from being printed
+        sys.stderr.write("\r")

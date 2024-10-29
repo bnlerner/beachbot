@@ -89,4 +89,8 @@ class RCRobotNode(base_node.BaseNode):
 
 if __name__ == "__main__":
     node = RCRobotNode()
-    node.start()
+    try:
+        node.start()
+    except KeyboardInterrupt:
+        # Little trick to prevent ^C or ^Z from being printed
+        sys.stderr.write("\r")
