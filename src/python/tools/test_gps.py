@@ -1,5 +1,5 @@
-import serial
-from ublox_gps import UbloxGps
+import serial  # type: ignore[import-untyped]
+from ublox_gps import UbloxGps  # type: ignore[import-untyped]
 
 # Can also use SPI here - import spidev
 # I2C is not supported
@@ -10,7 +10,7 @@ port = serial.Serial("/dev/ttyACM0", baudrate=38400, timeout=1)
 gps = UbloxGps(port)
 
 
-def run():
+def run() -> None:
     try:
         print("Listenting for UBX Messages.")
         while True:

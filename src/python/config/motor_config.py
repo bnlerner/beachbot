@@ -8,7 +8,7 @@ from typing import Literal
 import pydantic
 
 
-class MotorLocation(enum.Enum):
+class MotorLocation(str, enum.Enum):
     FRONT_LEFT = "FRONT_LEFT"
     FRONT_RIGHT = "FRONT_RIGHT"
     REAR_LEFT = "REAR_LEFT"

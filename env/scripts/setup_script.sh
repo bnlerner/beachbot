@@ -28,4 +28,6 @@ git config --global user.name "Brian Lerner" && \
 cd beachbot && \ pip3 install -r env/python_requirements/requirements.txt && \
 sudo bash -c "curl https://cdn.odriverobotics.com/files/odrive-udev-rules.rules > /etc/udev/rules.d/91-odrive.rules && udevadm control --reload-rules && udevadm trigger" && \
 sudo usermod -a -G dialout brianlerner && \
+sudo mkdir -p /var/log/beachbot var/msgs && \
+sudo chown brianlerner /var/log/beachbot && \
 sudo reboot

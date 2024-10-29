@@ -1,22 +1,47 @@
 import asyncio
 import functools
-from typing import Callable, List, Optional
+from typing import Callable, Dict, List, Optional
+
+import log
+from ipc import core, messages, pubsub
 
 
 class BaseNode:
     """A node which defines common functionality used in other nodes"""
 
-    def __init__(self) -> None:
+    def __init__(self, node_id: core.NodeID) -> None:
+        self._node_id = node_id
         # Maintains a reference to the task running in the node so its cancellable.
         self._node_task: Optional[asyncio.Task] = None
         self._background_tasks: List[asyncio.Task] = []
         self._task_functions: List[Callable] = []
 
+        # IPC Pub sub
+        self._subscriber_callbacks: Dict[core.ChannelSpec, Callable] = {}
+        self._subscribers: List[pubsub.Subscriber] = []
+        self._publishers: Dict[core.ChannelSpec, pubsub.Publisher] = {}
+
+    def start(self) -> None:
+        log.info(f"Starting node: {self._node_id}")
+        asyncio.run(self._async_run())
+
     def add_tasks(self, *functions: Callable) -> None:
         self._task_functions.extend(functions)
 
-    def start(self) -> None:
-        asyncio.run(self._async_run())
+    def add_subscribers(self, channels: Dict[core.ChannelSpec, Callable]) -> None:
+        self._subscriber_callbacks.update(channels)
+
+    def add_publishers(self, *channels: core.ChannelSpec) -> None:
+        for channel in channels:
+            self._publishers[channel] = pubsub.Publisher(channel)
+
+    def publish(self, channel: core.ChannelSpec, msg: messages.BaseMessage) -> None:
+        if channel not in self._publishers:
+            raise RuntimeError(
+                f"Unable to publish message without setting up the {channel=} first."
+            )
+
+        self._publishers[channel].publish(msg)
 
     async def _async_run(self) -> None:
         self._node_task = asyncio.create_task(self._main())
@@ -25,6 +50,7 @@ class BaseNode:
     async def _main(self) -> None:
         exception: Optional[Exception] = None
         try:
+            self._add_pubsub_functions()
             self._create_tasks()
             await asyncio.gather(*self._background_tasks)
         except Exception as err:
@@ -35,8 +61,18 @@ class BaseNode:
             await self._raise_exceptions(exception)
 
     def shutdown(self) -> None:
+        log.info(f"Stopping node: {self._node_id}")
         for task in self._background_tasks:
             task.cancel()
+
+        for sub in self._subscribers:
+            sub.close()
+
+    def _add_pubsub_functions(self) -> None:
+        for channel, callback in self._subscriber_callbacks.items():
+            sub = pubsub.Subscriber(channel, callback)
+            self._subscribers.append(sub)
+            self._task_functions.append(sub.listen)
 
     def _create_tasks(self) -> None:
         for function in self._task_functions:
