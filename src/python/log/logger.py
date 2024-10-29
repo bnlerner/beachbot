@@ -1,8 +1,7 @@
 import pathlib
 import sys
+from datetime import datetime, timezone
 from typing import BinaryIO
-
-import system_info
 
 _LOG_DIRECTORY = pathlib.Path("/var/log/beachbot")
 
@@ -35,5 +34,10 @@ class Logger:
         self._write_to_log("WARNING", msg)
 
     def _write_to_log(self, level: str, msg: str) -> None:
-        log_str = f"{system_info.timestamp()} {level.upper()}: {msg}\n"
+        log_str = f"{_iso_time()} {level.upper()}: {msg}\n"
         self._log_file.write(log_str.encode("utf-8"))
+
+
+def _iso_time() -> str:
+    """Current timestamp as a string."""
+    return datetime.now(tz=timezone.utc).isoformat()

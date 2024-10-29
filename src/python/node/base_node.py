@@ -3,7 +3,7 @@ import functools
 from typing import Callable, Dict, List, Optional
 
 import log
-from ipc import core, messages, pubsub
+from ipc import core, pubsub
 
 
 class BaseNode:
@@ -33,9 +33,9 @@ class BaseNode:
 
     def add_publishers(self, *channels: core.ChannelSpec) -> None:
         for channel in channels:
-            self._publishers[channel] = pubsub.Publisher(channel)
+            self._publishers[channel] = pubsub.Publisher(self._node_id, channel)
 
-    def publish(self, channel: core.ChannelSpec, msg: messages.BaseMessage) -> None:
+    def publish(self, channel: core.ChannelSpec, msg: core.BaseMessage) -> None:
         if channel not in self._publishers:
             raise RuntimeError(
                 f"Unable to publish message without setting up the {channel=} first."
@@ -68,9 +68,12 @@ class BaseNode:
         for sub in self._subscribers:
             sub.close()
 
+        for pub in self._publishers.values():
+            pub.close()
+
     def _add_pubsub_functions(self) -> None:
         for channel, callback in self._subscriber_callbacks.items():
-            sub = pubsub.Subscriber(channel, callback)
+            sub = pubsub.Subscriber(self._node_id, channel, callback)
             self._subscribers.append(sub)
             self._task_functions.append(sub.listen)
 

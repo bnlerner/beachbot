@@ -1,5 +1,4 @@
 import pathlib
-from datetime import datetime, timezone
 
 
 def get_root_project_directory() -> pathlib.Path:
@@ -9,8 +8,3 @@ def get_root_project_directory() -> pathlib.Path:
     idx = directories.index("src")
 
     return pathlib.Path().joinpath(*directories[:idx])
-
-
-def timestamp() -> str:
-    """Current timestamp as a string."""
-    return datetime.now(tz=timezone.utc).isoformat()

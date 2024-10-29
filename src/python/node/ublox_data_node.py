@@ -1,17 +1,16 @@
 import asyncio
 import dataclasses
-import time
-from typing import Optional
-
 import os
 import sys
+import time
+from typing import Optional
 
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import log
 import serial  # type: ignore[import-untyped]
-from ipc import channels, core, messages
+from ipc import channels, messages
 from ublox_gps import UbloxGps  # type: ignore[import-untyped]
 
 from node import base_node
@@ -47,7 +46,7 @@ class UbloxDataNode(base_node.BaseNode):
     """
 
     def __init__(self) -> None:
-        super().__init__(core.NodeID(name="motor_control"))
+        super().__init__(channels.NodeIDs.UBLOX_DATA)
         self._serial_conn = serial.Serial(_PORT, baudrate=_BAUDRATE, timeout=_TIMEOUT)
         self._ublox_gps = UbloxGps(self._serial_conn)
 

@@ -1,11 +1,16 @@
-from typing import Generic, Type, TypeVar
+from __future__ import annotations
+
+from typing import Generic, Optional, TypeVar
 
 import pydantic
+import pydantic.generics
 
-MessageT = TypeVar("MessageT")
+BaseMessageT = TypeVar("BaseMessageT")
 
 
 class NodeID(pydantic.BaseModel):
+    """Identifies a node that is running."""
+
     name: str
 
     def __hash__(self) -> int:
@@ -15,9 +20,19 @@ class NodeID(pydantic.BaseModel):
         return self.name
 
 
-class ChannelSpec(pydantic.BaseModel, Generic[MessageT]):
+class BaseMessage(pydantic.BaseModel):
+    """The base class for all messages sent."""
+
+    origin: Optional[NodeID] = None
+    creation: Optional[float] = None
+
+
+class ChannelSpec(pydantic.BaseModel, Generic[BaseMessageT]):
+    """The identification of a method of sending a message from
+    a publisher to a subscriber.
+    """
+
     channel: str
-    msg_class: Type[MessageT]
 
     def name(self) -> str:
         return self.channel

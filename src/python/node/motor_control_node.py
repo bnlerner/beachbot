@@ -1,16 +1,15 @@
 import asyncio
 import collections
-from typing import DefaultDict
-
 import os
 import sys
+from typing import DefaultDict
 
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from drivers.can import connection, enums
 from drivers.can import messages as can_messages
-from ipc import channels, core, session
+from ipc import channels, session
 from ipc import messages as ipc_messages
 from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 
@@ -21,7 +20,7 @@ class MotorControlNode(base_node.BaseNode):
     """A Node to control the ODrive motor controllers via a CAN bus interface."""
 
     def __init__(self) -> None:
-        super().__init__(core.NodeID(name="motor_control"))
+        super().__init__(channels.NodeIDs.MOTOR_CONTROL)
         self._can_bus = connection.CANSimple(
             enums.CANInterface.ODRIVE, enums.BusType.SOCKET_CAN
         )
@@ -91,7 +90,8 @@ class MotorControlNode(base_node.BaseNode):
 
 
 async def _async_print_msg(msg: can_messages.OdriveCanMessage) -> None:
-    print(msg)
+    if msg.node_id != 1:
+        print(msg)
 
 
 if __name__ == "__main__":
