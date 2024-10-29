@@ -5,12 +5,14 @@ import sys
 import time
 from typing import Optional
 
+from python.ipc import registry
+
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import log
 import serial  # type: ignore[import-untyped]
-from ipc import channels, messages
+from ipc import messages
 from ublox_gps import UbloxGps  # type: ignore[import-untyped]
 
 from node import base_node
@@ -46,7 +48,7 @@ class UbloxDataNode(base_node.BaseNode):
     """
 
     def __init__(self) -> None:
-        super().__init__(channels.NodeIDs.UBLOX_DATA)
+        super().__init__(registry.NodeIDs.UBLOX_DATA)
         self._serial_conn = serial.Serial(_PORT, baudrate=_BAUDRATE, timeout=_TIMEOUT)
         self._ublox_gps = UbloxGps(self._serial_conn)
 
@@ -54,7 +56,7 @@ class UbloxDataNode(base_node.BaseNode):
         self._gps_data: Optional[_GPSData] = None
 
         self.add_tasks(self._listen, self._publish)
-        self.add_publishers(channels.Channels.BODY_DYNAMICS, channels.Channels.BODY_GPS)
+        self.add_publishers(registry.Channels.BODY_DYNAMICS, registry.Channels.BODY_GPS)
 
     async def _listen(self) -> None:
         while True:
@@ -71,10 +73,10 @@ class UbloxDataNode(base_node.BaseNode):
         while True:
             start_time = time.perf_counter()
             if gps_msg := self._gen_gps_message():
-                self.publish(channels.Channels.BODY_GPS, gps_msg)
+                self.publish(registry.Channels.BODY_GPS, gps_msg)
 
             if veh_msg := self._gen_vehicle_message():
-                self.publish(channels.Channels.BODY_DYNAMICS, veh_msg)
+                self.publish(registry.Channels.BODY_DYNAMICS, veh_msg)
 
             write_time = time.perf_counter() - start_time
             sleep_time = total_time - write_time

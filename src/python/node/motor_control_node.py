@@ -4,12 +4,14 @@ import os
 import sys
 from typing import DefaultDict
 
+from python.ipc import registry
+
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from drivers.can import connection, enums
 from drivers.can import messages as can_messages
-from ipc import channels, session
+from ipc import session
 from ipc import messages as ipc_messages
 from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 
@@ -20,7 +22,7 @@ class MotorControlNode(base_node.BaseNode):
     """A Node to control the ODrive motor controllers via a CAN bus interface."""
 
     def __init__(self) -> None:
-        super().__init__(channels.NodeIDs.MOTOR_CONTROL)
+        super().__init__(registry.NodeIDs.MOTOR_CONTROL)
         self._can_bus = connection.CANSimple(
             enums.CANInterface.ODRIVE, enums.BusType.SOCKET_CAN
         )
@@ -36,10 +38,10 @@ class MotorControlNode(base_node.BaseNode):
         )
         self.add_subscribers(
             {
-                channels.Channels.FRONT_LEFT_MOTOR_CMD: self._send_motor_cmd,
-                channels.Channels.FRONT_RIGHT_MOTOR_CMD: self._send_motor_cmd,
-                channels.Channels.REAR_LEFT_MOTOR_CMD: self._send_motor_cmd,
-                channels.Channels.REAR_RIGHT_MOTOR_CMD: self._send_motor_cmd,
+                registry.Channels.FRONT_LEFT_MOTOR_CMD: self._send_motor_cmd,
+                registry.Channels.FRONT_RIGHT_MOTOR_CMD: self._send_motor_cmd,
+                registry.Channels.REAR_LEFT_MOTOR_CMD: self._send_motor_cmd,
+                registry.Channels.REAR_RIGHT_MOTOR_CMD: self._send_motor_cmd,
             }
         )
         self.add_tasks(self._set_closed_loop_axis_state, self._can_bus.listen)
