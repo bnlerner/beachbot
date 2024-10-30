@@ -3,6 +3,9 @@ import collections
 import os
 import sys
 from typing import DefaultDict
+import math
+
+from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -11,7 +14,6 @@ from drivers.can import connection, enums
 from drivers.can import messages as can_messages
 from ipc import messages as ipc_messages
 from ipc import registry, session
-from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 
 from node import base_node
 
@@ -30,12 +32,12 @@ class MotorControlNode(base_node.BaseNode):
             lambda: -1
         )
         self._motor_velocity: DefaultDict[int, float] = collections.defaultdict(
-            lambda: -10_000_000
+            lambda: math.nan
         )
 
         self._can_bus.register_callbacks(
-            (can_messages.EncoderEstimatesMessage, self._async_print_msg),
-            (can_messages.HeartbeatMessage, self._set_axis_state_from_heartbeat),
+            (can_messages.EncoderEstimatesMessage, self._set_motor_velocity),
+            (can_messages.HeartbeatMessage, self._set_axis_state_from_heartbeat)
         )
         self.add_subscribers(
             {
@@ -49,39 +51,33 @@ class MotorControlNode(base_node.BaseNode):
 
     async def shutdown_hook(self) -> None:
         # Sends a zero velocity to stop the motors.
-        print(self._motor_velocity)
         for motor in self._motor_configs:
             msg = ipc_messages.MotorCommandMessage(motor=motor, velocity=0.0)
             await self._send_motor_cmd(msg)
-
-        await self._set_axis_state(odrive_enums.AxisState.IDLE)
+            await self._set_axis_state(motor.node_id, odrive_enums.AxisState.IDLE)
         self._can_bus.shutdown()
 
     async def _set_closed_loop_axis_state(self) -> None:
-        await self._set_axis_state(odrive_enums.AxisState.CLOSED_LOOP_CONTROL)
-
-    async def _set_axis_state(self, axis_state: odrive_enums.AxisState) -> None:
         for motor in self._motor_configs:
-            axis_msg = can_messages.SetAxisStateMessage(
-                motor.node_id, axis_state=axis_state
+            await self._set_axis_state(
+                motor.node_id, odrive_enums.AxisState.CLOSED_LOOP_CONTROL
             )
-            await self._can_bus.send(axis_msg)
 
-        # Wait for all motors to set and respond
-        await self._wait_for_closed_loop_axis_state()
+    async def _set_axis_state(
+        self, node_id: int, axis_state: odrive_enums.AxisState
+    ) -> None:
+        axis_msg = can_messages.SetAxisStateMessage(node_id, axis_state=axis_state)
+        await self._can_bus.send(axis_msg)
 
-    async def _wait_for_closed_loop_axis_state(self) -> None:
+    async def _wait_for_closed_loop_axis_state(self, node_id: int) -> None:
         closed_loop_state = odrive_enums.AxisState.CLOSED_LOOP_CONTROL.value
-        while True:
-            if all(
-                self._motor_axis_state[motor.node_id] == closed_loop_state
-                for motor in self._motor_configs
-            ):
-                break
-
-            await asyncio.sleep(0.01)
+        while self._motor_axis_state[node_id] != closed_loop_state:
+            await asyncio.sleep(0.001)
 
     async def _send_motor_cmd(self, msg: ipc_messages.MotorCommandMessage) -> None:
+        # Wait for the motor to enter a closed loop axis state prior to sending any commands to it.
+        await self._wait_for_closed_loop_axis_state(msg.motor.node_id)
+
         vel_msg = can_messages.SetVelocityMessage(
             msg.motor.node_id, velocity=msg.velocity, torque=0.0
         )
@@ -92,7 +88,7 @@ class MotorControlNode(base_node.BaseNode):
     ) -> None:
         self._motor_axis_state[msg.node_id] = msg.axis_state
 
-    async def _async_print_msg(self, msg: can_messages.EncoderEstimatesMessage) -> None:
+    async def _set_motor_velocity(self, msg: can_messages.EncoderEstimatesMessage) -> None:
         self._motor_velocity[msg.node_id] = msg.vel_estimate
 
 

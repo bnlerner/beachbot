@@ -120,7 +120,7 @@ class OdriveCanMessage:
         values_str = ", ".join(
             f"{key}: {value}" for key, value in self.__dict__.items()
         )
-        return f"{self.__class__.__name__}\n ({values_str})"
+        return f"{self.__class__.__name__}({values_str})"
 
 
 ##################################################################################################################

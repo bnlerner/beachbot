@@ -71,9 +71,14 @@ class Subscriber(Generic[BaseMessageT]):
         while self._running:
             _raise_if_shm_id_changed(self._shm_id, _get_shm_id(self._shm))
             # Copy the data to help avoid race conditions
-            data = bytes(self._shm.buf)
-            msg = pickle.loads(data)
-            if msg == self._last_msg:
+            try:
+                data = bytes(self._shm.buf)
+                msg = pickle.loads(data)
+            # Pickling errors can happen if the shm has no data. Set message to none.
+            except pickle.UnpicklingError:
+                msg = None
+
+            if msg is None or msg == self._last_msg:
                 await asyncio.sleep(_POLL_INTERVAL)
             else:
                 self._last_msg = msg

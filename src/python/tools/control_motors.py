@@ -10,11 +10,17 @@ See https://docs.odriverobotics.com/v/latest/manual/can-protocol.html for protoc
 documentation.
 """
 import asyncio
+import os
+import sys
+
+from odrive import enums as odrive_enums  # type: ignore[import-untyped]
+
+# Get the path to the root of the project
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import motor_config
 from drivers.can import connection, enums, messages
 from ipc import session
-from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 
 
 async def _control_motor(
