@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Generic, Optional, TypeVar
 
 import pydantic
-import pydantic.generics
 
 BaseMessageT = TypeVar("BaseMessageT")
 

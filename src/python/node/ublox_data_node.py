@@ -5,14 +5,12 @@ import sys
 import time
 from typing import Optional
 
-from python.ipc import registry
-
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import log
 import serial  # type: ignore[import-untyped]
-from ipc import messages
+from ipc import messages, registry
 from ublox_gps import UbloxGps  # type: ignore[import-untyped]
 
 from node import base_node

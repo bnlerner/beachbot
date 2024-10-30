@@ -6,6 +6,7 @@ import can
 from drivers.can import enums, messages
 
 ODriveCanMessageT = TypeVar("ODriveCanMessageT", bound="messages.OdriveCanMessage")
+_ODRIVE_BAUDRATE = 250_000
 
 
 class CANSimpleListener(can.Listener, Generic[ODriveCanMessageT]):
@@ -58,11 +59,14 @@ class CANSimple:
     def __init__(
         self, can_interface: enums.CANInterface, bustype: enums.BusType
     ) -> None:
-        self._can_bus = can.interface.Bus(can_interface.value, interface=bustype.value)
+        self._can_bus = can.interface.Bus(
+            can_interface.value, interface=bustype.value, bitrate=_ODRIVE_BAUDRATE
+        )
         self._flush_bus()
         self._notifier: Optional[can.Notifier] = None
         self._listeners: List[CANSimpleListener] = []
         self._listen_tasks: List[asyncio.Task] = []
+        self._reader = can.AsyncBufferedReader()
 
     def register_callbacks(
         self, *msg_cls_callbacks: Tuple[Type[messages.OdriveCanMessage], Callable]
@@ -88,6 +92,27 @@ class CANSimple:
         ]
         await asyncio.gather(*self._listen_tasks)
 
+    async def await_response(
+        self, node_id: int, value_type: messages.VALUE_TYPES, timeout: float = 1.0
+    ) -> Optional[messages.ParameterResponse]:
+        self._flush_reader()
+        self._add_listener_to_notifier(self._reader)
+        # Set the class instance var to the value type. Not the cleanest but works
+        # in this message architecture.
+        messages.ParameterResponse.value_type = value_type
+
+        return await asyncio.wait_for(self._poll_for_response(node_id), timeout)
+
+    async def _poll_for_response(
+        self, node_id: int
+    ) -> Optional[messages.ParameterResponse]:
+        arb_id = messages.ParameterResponse(node_id).arbitration_id
+        async for can_msg in self._reader:
+            if can_msg.arbitration_id == arb_id.value:
+                return messages.ParameterResponse.from_can_message(can_msg)
+
+        return None
+
     def shutdown(self) -> None:
         if self._notifier is not None:
             self._notifier.stop()
@@ -95,10 +120,22 @@ class CANSimple:
             task.cancel()
         self._clean_up_can_bus()
 
+    def _add_listener_to_notifier(self, listener: can.Listener) -> None:
+        if self._notifier is None:
+            self._notifier = can.Notifier(
+                self._can_bus, [listener], loop=asyncio.get_running_loop()
+            )
+        elif self._reader not in self._notifier.listeners:
+            self._notifier.add_listener(listener)
+
     def _flush_bus(self) -> None:
         # Flush CAN RX buffer so there are no more old pending messages
         while self._can_bus.recv(timeout=0) is not None:
             pass
+
+    def _flush_reader(self) -> None:
+        while not self._reader.buffer.empty():
+            self._reader.buffer.get_nowait()
 
     def _clean_up_can_bus(self) -> None:
         try:

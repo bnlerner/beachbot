@@ -1,4 +1,4 @@
-"""A channel contains all information to send a message through from a
+"""A registry contains all information to send a message through from a
 publisher to a subscriber.
 """
 from types import SimpleNamespace

@@ -7,14 +7,12 @@ import sys
 import time
 from typing import Optional, Union
 
-from python.ipc import registry
-
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import motor_config
 from controls import rc_velocity_generator
-from ipc import core, messages, session
+from ipc import core, messages, registry, session
 from pynput import keyboard
 
 from node import base_node

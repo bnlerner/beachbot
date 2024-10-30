@@ -4,15 +4,13 @@ import os
 import sys
 from typing import DefaultDict
 
-from python.ipc import registry
-
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from drivers.can import connection, enums
 from drivers.can import messages as can_messages
-from ipc import session
 from ipc import messages as ipc_messages
+from ipc import registry, session
 from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 
 from node import base_node
@@ -31,9 +29,12 @@ class MotorControlNode(base_node.BaseNode):
         self._motor_axis_state: DefaultDict[int, int] = collections.defaultdict(
             lambda: -1
         )
+        self._motor_velocity: DefaultDict[int, float] = collections.defaultdict(
+            lambda: -10_000_000
+        )
 
         self._can_bus.register_callbacks(
-            (can_messages.EncoderEstimatesMessage, _async_print_msg),
+            (can_messages.EncoderEstimatesMessage, self._async_print_msg),
             (can_messages.HeartbeatMessage, self._set_axis_state_from_heartbeat),
         )
         self.add_subscribers(
@@ -48,6 +49,7 @@ class MotorControlNode(base_node.BaseNode):
 
     async def shutdown_hook(self) -> None:
         # Sends a zero velocity to stop the motors.
+        print(self._motor_velocity)
         for motor in self._motor_configs:
             msg = ipc_messages.MotorCommandMessage(motor=motor, velocity=0.0)
             await self._send_motor_cmd(msg)
@@ -90,10 +92,8 @@ class MotorControlNode(base_node.BaseNode):
     ) -> None:
         self._motor_axis_state[msg.node_id] = msg.axis_state
 
-
-async def _async_print_msg(msg: can_messages.OdriveCanMessage) -> None:
-    if msg.node_id != 1:
-        print(msg)
+    async def _async_print_msg(self, msg: can_messages.EncoderEstimatesMessage) -> None:
+        self._motor_velocity[msg.node_id] = msg.vel_estimate
 
 
 if __name__ == "__main__":
