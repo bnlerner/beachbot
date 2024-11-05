@@ -5,7 +5,8 @@ import pathlib
 import signal
 import subprocess
 import time
-from typing import List
+from typing import List, Optional
+from types import FrameType
 
 import pydantic
 import system_info
@@ -47,9 +48,12 @@ class Orchestrator:
             raise NotImplementedError(f"Unexpected profile: {profile}")
         # List to keep track of child processes
         self._processes: List[subprocess.Popen] = []
+        self._add_cleanup_signals()
+        self._running: bool
 
     async def run(self) -> None:
         """Start a new node process."""
+        self._running = True
         self._create_sub_processes()
         await self._spin_and_poll_subprocesses()
 
@@ -69,13 +73,37 @@ class Orchestrator:
             for process in self._processes:
                 if poll_result := process.poll():
                     print(f"{process.args=}, {poll_result=}")
+                    return
 
             time.sleep(0.1)
 
     def stop(self) -> None:
         """Send a SIGINT signal to all child processes to stop them."""
+        if not self._running:
+            return 
+        
         for process in self._processes:
             # Send SIGINT to process group
-            os.killpg(os.getpgid(process.pid), signal.SIGINT)
-            process.wait()  # Wait for process to terminate
-            print(f"Stopped {process=} with PID {process.pid}")
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGINT)
+                process.wait()  # Wait for process to terminate
+            except ProcessLookupError as err:
+                print(f"Unable to find process {process.pid}")
+            else:
+                print(f"Stopped {process=} with PID {process.pid}")
+        
+        self._running = False
+
+    def _rcv_signal(self, signal_: Optional[int], frame: Optional[FrameType]) -> None:
+        print(f"Received shutdown signal {signal_=}")
+        self.stop()
+
+    def _add_cleanup_signals(self) -> None:
+        catchable_signals = set(signal.Signals) - {
+            signal.SIGKILL,
+            signal.SIGSTOP,
+            signal.SIGCHLD,
+        }
+        for signal_ in catchable_signals:
+            signal.signal(signal_, self._rcv_signal)
+
