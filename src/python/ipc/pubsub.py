@@ -36,7 +36,7 @@ class Publisher(Generic[BaseMessageT]):
         self._write_to_shm(serialized_msg)
 
     def close(self) -> None:
-        """Stops the publiser, closing any open data links permanently."""
+        """Stops the publisher, closing any open data links permanently."""
         _close(self._shm)
 
     def _write_to_shm(self, data: bytes) -> None:
