@@ -40,7 +40,9 @@ async def main() -> None:
 
         msg = messages.ReadParameterCommand(args.node_id, endpoint_id=endpoint_id)
         await bus.send(msg)
-        response = await bus.await_response(args.node_id, value_type=endpoint_type)
+        response = await bus.await_parameter_response(
+            args.node_id, value_type=endpoint_type
+        )
         print(f"{_PATH} = {response.value if response else None}")
 
     finally:

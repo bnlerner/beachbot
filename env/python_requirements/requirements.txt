@@ -6,4 +6,4 @@ types-pynput==1.7.7
 ruff==0.1.8
 sparkfun-ublox-gps==1.1.5
 pyserial==3.5
-
+spidev==3.6

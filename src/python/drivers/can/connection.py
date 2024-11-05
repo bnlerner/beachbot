@@ -10,6 +10,10 @@ _ODRIVE_BAUDRATE = 250_000
 
 
 class CANSimpleListener(can.Listener, Generic[ODriveCanMessageT]):
+    """Listens to CAN messages and provides ways to add callbacks or get the message
+    if desired.
+    """
+
     def __init__(
         self, msg_class: Type[ODriveCanMessageT], *, callback: Optional[Callable] = None
     ):
@@ -85,6 +89,7 @@ class CANSimple:
         await asyncio.sleep(0)
 
     async def listen(self) -> None:
+        """Listens to incoming messages via registered callbacks and spins."""
         loop = asyncio.get_running_loop()
         self._notifier = can.Notifier(self._can_bus, self._listeners, loop=loop)
         self._listen_tasks = [
@@ -92,23 +97,30 @@ class CANSimple:
         ]
         await asyncio.gather(*self._listen_tasks)
 
-    async def await_response(
+    async def await_parameter_response(
         self, node_id: int, value_type: messages.VALUE_TYPES, timeout: float = 1.0
     ) -> Optional[messages.ParameterResponse]:
+        """Waits until a specific message type is received on the can bus."""
         self._flush_reader()
         self._add_listener_to_notifier(self._reader)
         # Set the class instance var to the value type. Not the cleanest but works
         # in this message architecture.
         messages.ParameterResponse.value_type = value_type
-
-        return await asyncio.wait_for(self._poll_for_response(node_id), timeout)
-
-    async def _poll_for_response(
-        self, node_id: int
-    ) -> Optional[messages.ParameterResponse]:
         arb_id = messages.ParameterResponse(node_id).arbitration_id
+
+        return await asyncio.wait_for(
+            self._poll_for_parameter_response(arb_id.value), timeout
+        )
+
+    async def _poll_for_parameter_response(
+        self, arbitration_id: int
+    ) -> Optional[messages.ParameterResponse]:
+        """Continuously polls the can bus for a specific arbitration id until a message
+        with the same arbitration id is found. In this case, the Odrive sends back
+        a parameter response to a get or set parameter notification.
+        """
         async for can_msg in self._reader:
-            if can_msg.arbitration_id == arb_id.value:
+            if can_msg.arbitration_id == arbitration_id:
                 return messages.ParameterResponse.from_can_message(can_msg)
 
         return None
@@ -121,6 +133,9 @@ class CANSimple:
         self._clean_up_can_bus()
 
     def _add_listener_to_notifier(self, listener: can.Listener) -> None:
+        """Adds a listener to the notifier, creating the notifier if its not already
+        instanstatiated and checking to ensure the listener is added twice.
+        """
         if self._notifier is None:
             self._notifier = can.Notifier(
                 self._can_bus, [listener], loop=asyncio.get_running_loop()
