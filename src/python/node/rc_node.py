@@ -1,6 +1,3 @@
-"""
-A simple example to print RC commands.
-"""
 import asyncio
 import os
 import sys
@@ -47,7 +44,7 @@ class RCRobotNode(base_node.BaseNode):
 
     def _on_press(self, key: Optional[Union[keyboard.Key, keyboard.KeyCode]]) -> None:
         if key == keyboard.Key.esc:
-            sys.exit(0)
+            self.shutdown()
 
         if isinstance(key, keyboard.Key):
             self._rc_velocity_generator.update(key, pressed=True)
@@ -60,8 +57,7 @@ class RCRobotNode(base_node.BaseNode):
         total_time = 1.0 / _PUBLISH_RATE
         while True:
             start_time = time.perf_counter()
-            for motor in self._motor_configs:
-                self._publish_motor_cmd_msg(motor)
+            self._publish_motor_cmd_msgs()
 
             write_time = time.perf_counter() - start_time
             sleep_time = total_time - write_time
@@ -79,11 +75,12 @@ class RCRobotNode(base_node.BaseNode):
         else:
             raise ValueError("unknown channel")
 
-    def _publish_motor_cmd_msg(self, motor: motor_config.MotorConfig) -> None:
-        velocity = self._rc_velocity_generator.velocity(motor)
-        msg = messages.MotorCommandMessage(motor=motor, velocity=velocity)
-        channel = self._get_motor_channel(motor)
-        self.publish(channel, msg)
+    def _publish_motor_cmd_msgs(self) -> None:
+        for motor in self._motor_configs:
+            velocity = self._rc_velocity_generator.velocity(motor)
+            msg = messages.MotorCommandMessage(motor=motor, velocity=velocity)
+            channel = self._get_motor_channel(motor)
+            self.publish(channel, msg)
 
     async def shutdown_hook(self) -> None:
         self._rc_listener.stop()
@@ -91,8 +88,4 @@ class RCRobotNode(base_node.BaseNode):
 
 if __name__ == "__main__":
     node = RCRobotNode()
-    try:
-        node.start()
-    except KeyboardInterrupt:
-        # Little trick to prevent ^C or ^Z from being printed
-        sys.stderr.write("\r")
+    node.start()

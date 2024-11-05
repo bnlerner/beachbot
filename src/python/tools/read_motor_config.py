@@ -10,7 +10,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import system_info
 from drivers.can import connection, enums, messages
 
-_PATH = "axis0.config.can.powers_msg_rate_ms"
 _FLAT_ENDPOINT_PATH = (
     system_info.get_root_project_directory() / "env/motor_configs/flat_endpoints.json"
 )
@@ -23,6 +22,12 @@ async def main() -> None:
     parser.add_argument(
         "--node-id", type=int, required=True, help="CAN Node ID of the ODrive."
     )
+    parser.add_argument(
+        "--path",
+        type=str,
+        required=True,
+        help="""The path to the specified parameter to read. \n For example reading the CAN cyclic message showing power is 'axis0.config.can.powers_msg_rate_ms'""",
+    )
     args = parser.parse_args()
 
     with open(_FLAT_ENDPOINT_PATH, "r") as fp:
@@ -33,8 +38,8 @@ async def main() -> None:
     bus.register_callbacks()
 
     try:
-        endpoint_id = endpoint_data["endpoints"][_PATH]["id"]
-        endpoint_type = endpoint_data["endpoints"][_PATH]["type"]
+        endpoint_id = endpoint_data["endpoints"][args.path]["id"]
+        endpoint_type = endpoint_data["endpoints"][args.path]["type"]
         if endpoint_type in ("function", "endpoint_ref"):
             raise ValueError(f"Unknown endpoint type {endpoint_type=}")
 
@@ -43,7 +48,7 @@ async def main() -> None:
         response = await bus.await_parameter_response(
             args.node_id, value_type=endpoint_type
         )
-        print(f"{_PATH} = {response.value if response else None}")
+        print(f"{args.path} = {response.value if response else None}")
 
     finally:
         bus.shutdown()

@@ -96,8 +96,4 @@ class MotorControlNode(base_node.BaseNode):
 
 if __name__ == "__main__":
     node = MotorControlNode()
-    try:
-        node.start()
-    except KeyboardInterrupt:
-        # Little trick to prevent ^C or ^Z from being printed
-        sys.stderr.write("\r")
+    node.start()

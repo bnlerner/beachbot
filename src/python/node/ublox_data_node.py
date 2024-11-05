@@ -23,6 +23,8 @@ _PUBLISH_RATE = 2  # In Hz
 
 @dataclasses.dataclass
 class _RPYDynamicsData:
+    """Information from the IMU on the Ublox module."""
+
     roll: float
     pitch: float
     heading: float
@@ -36,6 +38,8 @@ class _RPYDynamicsData:
 
 @dataclasses.dataclass
 class _GPSData:
+    """Information directly from the GPS on the Ublox module."""
+
     latitude: float
     longitude: float
 
@@ -134,8 +138,4 @@ class UbloxDataNode(base_node.BaseNode):
 
 if __name__ == "__main__":
     node = UbloxDataNode()
-    try:
-        node.start()
-    except KeyboardInterrupt:
-        # Little trick to prevent ^C or ^Z from being printed
-        sys.stderr.write("\r")
+    node.start()

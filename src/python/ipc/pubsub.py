@@ -40,14 +40,17 @@ class Publisher(Generic[BaseMessageT]):
         _close(self._shm)
 
     def _write_to_shm(self, data: bytes) -> None:
+        """Writes to SHM with a buffer if the message is not the exact size of the
+        registry.
+        """
         buffer = b"\x00" * (_MSG_SIZE - len(data))
         data_w_buffer = data + buffer
         self._shm.buf[:_MSG_SIZE] = data_w_buffer
 
 
 class Subscriber(Generic[BaseMessageT]):
-    """A generic subscriber for receiving messages sent to a specific channel. Once received,
-    the message is passed to a callback function for processing.
+    """A generic subscriber for receiving messages sent to a specific channel. Once
+    received, the message is passed to a callback function for processing.
     """
 
     def __init__(
@@ -70,15 +73,7 @@ class Subscriber(Generic[BaseMessageT]):
         """
         while self._running:
             _raise_if_shm_id_changed(self._shm_id, _get_shm_id(self._shm))
-            # Copy the data to help avoid race conditions
-            try:
-                data = bytes(self._shm.buf)
-                msg = pickle.loads(data)
-            # Pickling errors can happen if the shm has no data. Set message to none.
-            except pickle.UnpicklingError:
-                msg = None
-
-            if msg is None or msg == self._last_msg:
+            if (msg := self._get_msg()) is None or msg == self._last_msg:
                 await asyncio.sleep(_POLL_INTERVAL)
             else:
                 self._last_msg = msg
@@ -95,6 +90,17 @@ class Subscriber(Generic[BaseMessageT]):
         """
         self._running = False
         _close(self._shm)
+
+    def _get_msg(self) -> Optional[BaseMessageT]:
+        # Copy the data to help avoid race conditions.
+        try:
+            data = bytes(self._shm.buf)
+            msg = pickle.loads(data)
+        # Pickling errors can happen if the shm has no data. Set message to none.
+        except pickle.UnpicklingError:
+            msg = None
+
+        return msg
 
 
 def _close(shm: SharedMemory) -> None:
