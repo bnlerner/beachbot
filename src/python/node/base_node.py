@@ -1,5 +1,7 @@
 import asyncio
 import functools
+import signal
+from types import FrameType
 from typing import Callable, Dict, List, Optional
 
 import log
@@ -20,6 +22,7 @@ class BaseNode:
         self._subscriber_callbacks: Dict[core.ChannelSpec, Callable] = {}
         self._subscribers: List[pubsub.Subscriber] = []
         self._publishers: Dict[core.ChannelSpec, pubsub.Publisher] = {}
+        self._add_cleanup_signals()
 
     def start(self) -> None:
         log.info(f"Starting node: {self._node_id}")
@@ -85,6 +88,19 @@ class BaseNode:
                 coroutine = asyncio.to_thread(function)
 
             self._background_tasks.append(asyncio.create_task(coroutine))
+
+    def _add_cleanup_signals(self) -> None:
+        catchable_signals = set(signal.Signals) - {
+            signal.SIGKILL,
+            signal.SIGSTOP,
+            signal.SIGCHLD,
+        }
+        for signal_ in catchable_signals:
+            signal.signal(signal_, self._rcv_signal)
+
+    def _rcv_signal(self, signal_: Optional[int], frame: Optional[FrameType]) -> None:
+        log.info(f"Received shutdown signal {signal_=}")
+        self.shutdown()
 
     async def shutdown_hook(self) -> None:
         """Runs prior to the node shutting down. Overridden by implementation of the node."""
