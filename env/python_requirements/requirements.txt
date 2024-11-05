@@ -3,3 +3,7 @@ pydantic==2.9.2
 python-can==4.4.2
 pynput==1.7.7
 types-pynput==1.7.7.20240813
+Flask==3.0.3
+gevent-websocket==0.10.1
+Flask-Cors==5.0.0
+flask-socketio==5.4.1
