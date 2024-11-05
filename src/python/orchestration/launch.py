@@ -5,8 +5,8 @@ import pathlib
 import signal
 import subprocess
 import time
-from typing import List, Optional
 from types import FrameType
+from typing import List, Optional
 
 import pydantic
 import system_info
@@ -80,18 +80,18 @@ class Orchestrator:
     def stop(self) -> None:
         """Send a SIGINT signal to all child processes to stop them."""
         if not self._running:
-            return 
-        
+            return
+
         for process in self._processes:
             # Send SIGINT to process group
             try:
                 os.killpg(os.getpgid(process.pid), signal.SIGINT)
                 process.wait()  # Wait for process to terminate
-            except ProcessLookupError as err:
+            except ProcessLookupError:
                 print(f"Unable to find process {process.pid}")
             else:
                 print(f"Stopped {process=} with PID {process.pid}")
-        
+
         self._running = False
 
     def _rcv_signal(self, signal_: Optional[int], frame: Optional[FrameType]) -> None:
@@ -106,4 +106,3 @@ class Orchestrator:
         }
         for signal_ in catchable_signals:
             signal.signal(signal_, self._rcv_signal)
-
