@@ -1,9 +1,9 @@
 import asyncio
 import collections
+import math
 import os
 import sys
 from typing import DefaultDict
-import math
 
 from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 
@@ -37,7 +37,7 @@ class MotorControlNode(base_node.BaseNode):
 
         self._can_bus.register_callbacks(
             (can_messages.EncoderEstimatesMessage, self._set_motor_velocity),
-            (can_messages.HeartbeatMessage, self._set_axis_state_from_heartbeat)
+            (can_messages.HeartbeatMessage, self._set_axis_state_from_heartbeat),
         )
         self.add_subscribers(
             {
@@ -88,7 +88,9 @@ class MotorControlNode(base_node.BaseNode):
     ) -> None:
         self._motor_axis_state[msg.node_id] = msg.axis_state
 
-    async def _set_motor_velocity(self, msg: can_messages.EncoderEstimatesMessage) -> None:
+    async def _set_motor_velocity(
+        self, msg: can_messages.EncoderEstimatesMessage
+    ) -> None:
         self._motor_velocity[msg.node_id] = msg.vel_estimate
 
 
