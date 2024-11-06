@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import sys
+from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -14,6 +15,22 @@ _FLAT_ENDPOINT_PATH = (
     system_info.get_root_project_directory() / "env/motor_configs/flat_endpoints.json"
 )
 
+
+async def _print_path(bus: connection.CANSimple, node_id: int, path: str) -> None:
+    with open(_FLAT_ENDPOINT_PATH, "r") as fp:
+        endpoint_data = json.load(fp)
+
+    endpoint_id = endpoint_data["endpoints"][path]["id"]
+    endpoint_type = endpoint_data["endpoints"][path]["type"]
+    if endpoint_type in ("function", "endpoint_ref"):
+        raise ValueError(f"Unknown endpoint type {endpoint_type=}")
+
+    msg = messages.ReadParameterCommand(node_id, endpoint_id=endpoint_id)
+    await bus.send(msg)
+    response = await bus.await_parameter_response(
+        node_id, value_type=endpoint_type
+    )
+    print(f"{path} = {response.value if response else None}")
 
 async def main() -> None:
     parser = argparse.ArgumentParser(
@@ -30,26 +47,11 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
-    with open(_FLAT_ENDPOINT_PATH, "r") as fp:
-        endpoint_data = json.load(fp)
-
     print("opening CAN bus...")
     bus = connection.CANSimple(enums.CANInterface.ODRIVE, enums.BusType.SOCKET_CAN)
-    bus.register_callbacks()
 
     try:
-        endpoint_id = endpoint_data["endpoints"][args.path]["id"]
-        endpoint_type = endpoint_data["endpoints"][args.path]["type"]
-        if endpoint_type in ("function", "endpoint_ref"):
-            raise ValueError(f"Unknown endpoint type {endpoint_type=}")
-
-        msg = messages.ReadParameterCommand(args.node_id, endpoint_id=endpoint_id)
-        await bus.send(msg)
-        response = await bus.await_parameter_response(
-            args.node_id, value_type=endpoint_type
-        )
-        print(f"{args.path} = {response.value if response else None}")
-
+        await _print_path(bus, args.node_id, args.path)
     finally:
         bus.shutdown()
 
