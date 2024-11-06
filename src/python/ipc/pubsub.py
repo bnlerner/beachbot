@@ -6,6 +6,9 @@ import time
 from multiprocessing.shared_memory import SharedMemory
 from typing import Callable, Generic, Optional, TypeVar
 
+import log
+from typing_helpers import req
+
 from ipc import core
 
 # In general no message size should exceed this number.
@@ -21,7 +24,8 @@ class Publisher(Generic[BaseMessageT]):
     def __init__(self, node_id: core.NodeID, channel: core.ChannelSpec):
         self._node_id = node_id
         self._shm = _init_shm(channel)
-        self._shm_id = _get_shm_id(self._shm)
+        # Should always be non-None because we just init the SHM file.
+        self._shm_id = req(_get_shm_id(self._shm))
 
     def publish(self, msg: BaseMessageT) -> None:
         """Sends a message to the channel.
@@ -29,7 +33,11 @@ class Publisher(Generic[BaseMessageT]):
         NOTE: Messages are not queued and only the latest message can be
         read by the subscriber.
         """
-        _raise_if_shm_id_changed(self._shm_id, _get_shm_id(self._shm))
+        if (cur_shm_id := _get_shm_id(self._shm)) is None:
+            log.info("Attempting to publish to a closed SHM file. Skipping")
+            return None
+
+        _raise_if_shm_id_changed(self._shm_id, cur_shm_id)
         msg.origin = self._node_id
         msg.creation = time.perf_counter()
         serialized_msg = pickle.dumps(msg)
@@ -62,7 +70,8 @@ class Subscriber(Generic[BaseMessageT]):
         self._node_id = node_id
         self._shm = _init_shm(channel)
         self._callback = callback
-        self._shm_id = _get_shm_id(self._shm)
+        # Should always be non-None because we just init the SHM file.
+        self._shm_id = req(_get_shm_id(self._shm))
 
         self._last_msg: Optional[BaseMessageT] = None
         self._running = True
@@ -72,7 +81,15 @@ class Subscriber(Generic[BaseMessageT]):
         callback.
         """
         while self._running:
-            _raise_if_shm_id_changed(self._shm_id, _get_shm_id(self._shm))
+            if (cur_shm_id := _get_shm_id(self._shm)) is None:
+                # If the current shm switches to None then we know that some other
+                # process has closed and unlinked the shm file so we choose to just exit
+                # the listen function vs raise.
+                self._running = False
+                log.info("Shutting down listen as the SHM file is unlinked.")
+                return
+
+            _raise_if_shm_id_changed(self._shm_id, cur_shm_id)
             if (msg := self._get_msg()) is None or msg == self._last_msg:
                 await asyncio.sleep(_POLL_INTERVAL)
             else:
@@ -92,9 +109,10 @@ class Subscriber(Generic[BaseMessageT]):
         _close(self._shm)
 
     def _get_msg(self) -> Optional[BaseMessageT]:
-        # Copy the data to help avoid race conditions.
         try:
-            data = bytes(self._shm.buf)
+            # Copy the data to help avoid race conditions. Force an unpickling
+            # error if the buffer is none.
+            data = bytes(self._shm.buf or b"\x00")
             msg = pickle.loads(data)
         # Pickling errors can happen if the shm has no data. Set message to none.
         except pickle.UnpicklingError:
@@ -144,6 +162,6 @@ def _is_coroutine(callback: Callable) -> bool:
     return asyncio.iscoroutinefunction(functools._unwrap_partial(callback))  # type: ignore[attr-defined]
 
 
-def _raise_if_shm_id_changed(shm_id_1: Optional[int], shm_id_2: Optional[int]) -> None:
+def _raise_if_shm_id_changed(shm_id_1: int, shm_id_2: int) -> None:
     if shm_id_1 != shm_id_2:
         raise ValueError(f"SHM ID has changed, file closed. {shm_id_1=}, {shm_id_2=}")

@@ -23,7 +23,7 @@ if __name__ == "__main__":
         "--profile",
         type=str,
         required=True,
-        choices=["hw"],
+        choices=["hw", "rc"],
         help="Name of profile to run.",
     )
     args = parser.parse_args()

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import os
 import pathlib
 import signal
 import subprocess
 import time
 from types import FrameType
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import pydantic
 import system_info
@@ -19,6 +18,7 @@ _OPTIONS = "-u"
 class NodeConfig(pydantic.BaseModel):
     file_name: str
     args: str = ""
+    env_vars: Dict[str, str] = {}
 
     @property
     def file_path(self) -> pathlib.Path:
@@ -26,7 +26,7 @@ class NodeConfig(pydantic.BaseModel):
 
     @classmethod
     def rc_node(cls) -> NodeConfig:
-        return NodeConfig(file_name="rc_node.py")
+        return NodeConfig(file_name="rc_node.py", env_vars={"DISPLAY": ":1"})
 
     @classmethod
     def motor_control_node(cls) -> NodeConfig:
@@ -39,13 +39,7 @@ class NodeConfig(pydantic.BaseModel):
 
 class Orchestrator:
     def __init__(self, profile: str):
-        if profile == "hw":
-            self._profile = [
-                NodeConfig.ublox_data_node(),
-                NodeConfig.motor_control_node(),
-            ]
-        else:
-            raise NotImplementedError(f"Unexpected profile: {profile}")
+        self._profile = _gen_profile(profile)
         # List to keep track of child processes
         self._processes: List[subprocess.Popen] = []
         self._add_cleanup_signals()
@@ -61,21 +55,33 @@ class Orchestrator:
         for node in self._profile:
             process = subprocess.Popen(
                 [_CMD, _OPTIONS, node.file_path, node.args],  # Command and arguments
+                env=node.env_vars,
                 stdout=subprocess.PIPE,  # Redirect stdout for monitoring
                 stderr=subprocess.PIPE,  # Redirect stderr for monitoring
-                preexec_fn=os.setsid,  # Start each process in a new process group
+                text=True,
+                start_new_session=True,  # Start each process in a new process group
             )
             self._processes.append(process)
-            print(f"Started Node: {node.file_name} with PID {process.pid}")
+            print(f"PID: {process.pid}, Started Node: {node.file_name}")
 
     async def _spin_and_poll_subprocesses(self) -> None:
         while True:
-            for process in self._processes:
-                if poll_result := process.poll():
-                    print(f"{process.args=}, {poll_result=}")
-                    return
+            if any([p.poll() is not None for p in self._processes]):
+                self._gather_all_errors()
+                return
 
             time.sleep(0.1)
+
+    def _gather_all_errors(self) -> None:
+        for process in self._processes:
+            stdout, stderr = process.communicate()
+            if process.returncode == 0:
+                continue
+
+            print(
+                f"PID: {process.pid}, Result: {process.returncode=} \n"
+                f"\tError : {stderr} \n\tOut: {stdout}"
+            )
 
     def stop(self) -> None:
         """Send a SIGINT signal to all child processes to stop them."""
@@ -83,14 +89,17 @@ class Orchestrator:
             return
 
         for process in self._processes:
-            # Send SIGINT to process group
             try:
-                os.killpg(os.getpgid(process.pid), signal.SIGINT)
-                process.wait()  # Wait for process to terminate
+                print(f"PID: {process.pid}, Sending interrupt to process.")
+                process.send_signal(signal.SIGINT.value)
+                # Wait for process to terminate
+                process.wait(5)
             except ProcessLookupError:
-                print(f"Unable to find process {process.pid}")
+                print(f"PID: {process.pid}, Unable to find process")
             else:
-                print(f"Stopped {process=} with PID {process.pid}")
+                print(
+                    f"PID: {process.pid}, Stopped process with result {process.returncode}"
+                )
 
         self._running = False
 
@@ -106,3 +115,16 @@ class Orchestrator:
         }
         for signal_ in catchable_signals:
             signal.signal(signal_, self._rcv_signal)
+
+
+def _gen_profile(profile: str) -> List[NodeConfig]:
+    if profile == "hw":
+        return [NodeConfig.ublox_data_node(), NodeConfig.motor_control_node()]
+    elif profile == "rc":
+        return [
+            NodeConfig.ublox_data_node(),
+            NodeConfig.motor_control_node(),
+            NodeConfig.rc_node(),
+        ]
+    else:
+        raise NotImplementedError(f"Unexpected profile: {profile}")

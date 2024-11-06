@@ -26,7 +26,12 @@ class BaseNode:
 
     def start(self) -> None:
         log.info(f"Starting node: {self._node_id}")
-        asyncio.run(self._async_run())
+        try:
+            asyncio.run(self._async_run())
+        except BaseException as err:
+            self._raise_exception(err)
+        finally:
+            log.info(f"Finished shutting down node: {self._node_id}")
 
     def add_tasks(self, *functions: Callable) -> None:
         self._task_functions.extend(functions)
@@ -61,7 +66,7 @@ class BaseNode:
         finally:
             self.shutdown()
             await self.shutdown_hook()
-            await self._raise_exceptions(exception)
+            await self._gather_exceptions(exception)
 
     def shutdown(self) -> None:
         log.info(f"Stopping node: {self._node_id}")
@@ -106,14 +111,17 @@ class BaseNode:
         """Runs prior to the node shutting down. Overridden by implementation of the node."""
         ...
 
-    async def _raise_exceptions(self, exception: Optional[BaseException]) -> None:
+    async def _gather_exceptions(self, exception: Optional[BaseException]) -> None:
+        """Gathers and raises any relevant exceptions."""
         results = await asyncio.gather(*self._background_tasks, return_exceptions=True)
         gather_exceptions = [r for r in results if isinstance(r, BaseException)]
         if exception:
             gather_exceptions.append(exception)
 
         for exception in gather_exceptions:
-            if isinstance(exception, (asyncio.CancelledError, KeyboardInterrupt)):
-                pass
-            else:
-                raise exception
+            self._raise_exception(exception)
+
+    def _raise_exception(self, exception: BaseException) -> None:
+        """Raises the exception unless its a common, not important one."""
+        if not isinstance(exception, (asyncio.CancelledError, KeyboardInterrupt)):
+            raise exception
