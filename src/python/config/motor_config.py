@@ -8,7 +8,13 @@ from typing import Literal
 import pydantic
 
 
-class MotorLocation(enum.Enum):
+# Str inheritance required so pydantic treats this as a string when
+# serializing base model objects.
+class MotorLocation(str, enum.Enum):
+    """The location of the motor on the chassis relative to the antenna
+    location (front).
+    """
+
     FRONT_LEFT = "FRONT_LEFT"
     FRONT_RIGHT = "FRONT_RIGHT"
     REAR_LEFT = "REAR_LEFT"
@@ -16,6 +22,10 @@ class MotorLocation(enum.Enum):
 
 
 class MotorConfig(pydantic.BaseModel):
+    """Representative of the motor, useful for CAN communication and indentifying
+    the motor location.
+    """
+
     node_id: int
     location: MotorLocation
 

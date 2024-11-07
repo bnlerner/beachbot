@@ -1,16 +1,60 @@
 from __future__ import annotations
 
 import struct
-from typing import Any, Optional, Type, TypeVar
+from typing import Any, Dict, Literal, Type, TypeVar, Union
 
 import can
 import pydantic
 from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 
 OdriveCanMessageT = TypeVar("OdriveCanMessageT", bound="OdriveCanMessage")
+# The possible formatting characters that we can use to deserialize the
+# data sent via the CAN bus.
+# See https://docs.python.org/3/library/struct.html#format-characters
+_BYTE_FORMAT_CHARS = Literal["?", "B", "b", "H", "h", "I", "i", "Q", "q", "f"]
+VALUE_TYPES = Literal[
+    "bool",
+    "uint8",
+    "int8",
+    "uint16",
+    "int16",
+    "uint32",
+    "int32",
+    "uint64",
+    "int64",
+    "float",
+]
+_BYTE_FORMAT_LOOKUP: Dict[VALUE_TYPES, _BYTE_FORMAT_CHARS] = {
+    "bool": "?",
+    "uint8": "B",
+    "int8": "b",
+    "uint16": "H",
+    "int16": "h",
+    "uint32": "I",
+    "int32": "i",
+    "uint64": "Q",
+    "int64": "q",
+    "float": "f",
+}
+_BYTE_SIZE_LOOKUP: Dict[VALUE_TYPES, int] = {
+    "bool": 1,
+    "uint8": 1,
+    "int8": 1,
+    "uint16": 2,
+    "int16": 2,
+    "uint32": 4,
+    "int32": 4,
+    "uint64": 8,
+    "int64": 8,
+    "float": 4,
+}
 
 
 class _ArbitrationID(pydantic.BaseModel):
+    """CAN arbitration ID is used to uniquely identify the message by the node and
+    the command id.
+    """
+
     node_id: int
     cmd_id: int
 
@@ -24,8 +68,15 @@ class _ArbitrationID(pydantic.BaseModel):
     def value(self) -> int:
         return self.node_id << 5 | self.cmd_id
 
+    def __hash__(self) -> int:
+        return hash((self.node_id, self.cmd_id))
+
 
 class OdriveCanMessage:
+    """A class representing different types of ODrive CAN messages that can be
+    sent to the node and received from the node.
+    """
+
     cmd_id: int
 
     def __init__(self, node_id: int, **kwargs: Any):
@@ -62,10 +113,10 @@ class OdriveCanMessage:
         message._parse_can_msg_data(msg)
         return message
 
-    def as_can_message(self, *, data: Optional[bytes] = None) -> can.Message:
+    def as_can_message(self) -> can.Message:
         return can.Message(
             arbitration_id=self._arbitration_id.value,
-            data=data or self._gen_can_msg_data(),
+            data=self._gen_can_msg_data(),
             is_extended_id=False,
         )
 
@@ -79,15 +130,64 @@ class OdriveCanMessage:
         values_str = ", ".join(
             f"{key}: {value}" for key, value in self.__dict__.items()
         )
-        return f"{self.__class__.__name__}\n ({values_str})"
+        return f"{self.__class__.__name__}({values_str})"
 
 
-##################################################################################################################
-# CYCLIC MESSAGES ################################################################################################
-##################################################################################################################
+########################################################################################
+# CYCLIC MESSAGES ######################################################################
+########################################################################################
+
+
+class BusVoltageCurrentMessage(OdriveCanMessage):
+    """The bus voltage of the motor. Sent periodically and can be configured by setting
+    a non-zero message rate.
+    """
+
+    cmd_id = 0x17
+
+    # Data is in Volts
+    voltage: float
+    # Data in Amperes
+    current: float
+
+    def _parse_can_msg_data(self, msg: can.Message) -> None:
+        self.voltage, self.current = struct.unpack("<ff", bytes(msg.data))
+
+
+class EncoderEstimatesMessage(OdriveCanMessage):
+    """Estimates of motor position and velocity in turns and turns/s."""
+
+    cmd_id = 0x09
+
+    # Units in revolutions, axis.pos_vel_mapper.pos_rel or .pos_abs depending on
+    # ODrive.Controller.Config.absolute_setpoints
+    pos_estimate: float
+    # Unit in revolutions/s, axis.pos_vel_mapper.vel
+    vel_estimate: float
+
+    def _parse_can_msg_data(self, msg: can.Message) -> None:
+        self.pos_estimate, self.vel_estimate = struct.unpack("<ff", bytes(msg.data))
+
+
+class ErrorMessage(OdriveCanMessage):
+    """Active errors occurring at the motor."""
+
+    cmd_id = 0x03
+
+    # Both data points are uint32
+    # NOTE: Not 100% sure this maps but lets just go with it
+    active_errors: odrive_enums.ODriveError
+    # TODO: Figure out what this should map to
+    disarm_reason: int
+
+    def _parse_can_msg_data(self, msg: can.Message) -> None:
+        active_err_int, self.disarm_reason = struct.unpack("<II", bytes(msg.data[:7]))
+        self.active_errors = odrive_enums.ODriveError(active_err_int)
 
 
 class HeartbeatMessage(OdriveCanMessage):
+    """Standard heartbeat from the motor node with its current state."""
+
     cmd_id = 0x01
 
     # uint32, starts at 0th byte, axis.active_errors | axis.disarm_reason
@@ -114,23 +214,8 @@ class HeartbeatMessage(OdriveCanMessage):
         return f"{self.__class__.__name__} {identification_str}\n ({values_str})"
 
 
-class EncoderEstimatesMessage(OdriveCanMessage):
-    cmd_id = 0x09
-
-    # Units in revolutions, axis.pos_vel_mapper.pos_rel or .pos_abs depending on
-    # ODrive.Controller.Config.absolute_setpoints
-    pos_estimate: float
-    # Unit in revolutions/s, axis.pos_vel_mapper.vel
-    vel_estimate: float
-
-    def _parse_can_msg_data(self, msg: can.Message) -> None:
-        self.pos_estimate, self.vel_estimate = struct.unpack("<ff", bytes(msg.data))
-
-
 class IqMessage(OdriveCanMessage):
-    """A measure of the configured current.
-    TODO: Quantify with a setting?
-    """
+    """A measure of the motor current and its setpoint."""
 
     cmd_id = 0x14
 
@@ -142,23 +227,26 @@ class IqMessage(OdriveCanMessage):
         self.setpoint, self.measured = struct.unpack("<ff", bytes(msg.data))
 
 
-class ErrorMessage(OdriveCanMessage):
-    """Odrive active errors."""
+class PowersMessage(OdriveCanMessage):
+    """A measure of the electrical and mechanical power at the motor"""
 
-    cmd_id = 0x03
+    cmd_id = 0x1D
 
-    # Both data points are uint32
-    # NOTE: Not 100% sure this maps but lets just go with it
-    active_errors: odrive_enums.ODriveError
-    # TODO: Figure out what this should map to
-    disarm_reason: int
+    # Both in Watts
+    electrical_power: float
+    mechanical_power: float
 
     def _parse_can_msg_data(self, msg: can.Message) -> None:
-        active_err_int, self.disarm_reason = struct.unpack("<II", bytes(msg.data[:7]))
-        self.active_errors = odrive_enums.ODriveError(active_err_int)
+        self.electrical_power, self.mechanical_power = struct.unpack(
+            "<ff", bytes(msg.data)
+        )
 
 
 class TemperatureMessage(OdriveCanMessage):
+    """A measure of the temperature the motor is experiencing along with its circuit
+    board temp.
+    """
+
     cmd_id = 0x15
 
     # Both in degrees C
@@ -171,19 +259,9 @@ class TemperatureMessage(OdriveCanMessage):
         )
 
 
-class BusVoltageCurrentMessage(OdriveCanMessage):
-    cmd_id = 0x17
-
-    # Data is in Volts
-    voltage: float
-    # Data in Amperes
-    current: float
-
-    def _parse_can_msg_data(self, msg: can.Message) -> None:
-        self.voltage, self.current = struct.unpack("<ff", bytes(msg.data))
-
-
 class TorquesMessage(OdriveCanMessage):
+    """Current motor torque and the target."""
+
     cmd_id = 0x1C
 
     # Both in Nm
@@ -195,6 +273,8 @@ class TorquesMessage(OdriveCanMessage):
 
 
 class VersionMessage(OdriveCanMessage):
+    """Firmware and hardware version."""
+
     cmd_id = 0x00
 
     hw_version: str
@@ -217,12 +297,94 @@ class VersionMessage(OdriveCanMessage):
         self.fw_version = f"{fw_major}.{fw_minor}.{fw_variant}"
 
 
-##################################################################################################################
-# COMMAND MESSAGES ###############################################################################################
-##################################################################################################################
+########################################################################################
+# COMMAND MESSAGES #####################################################################
+########################################################################################
+
+
+class ReadParameterCommand(OdriveCanMessage):
+    """A command to read a specific parameter on the motor. Described in the
+    flat_endpoints.json file for the specific motor firmware version.
+    """
+
+    cmd_id = 0x04
+
+    op_code = 0x00
+    # Endpoint ID as described in the flat_endpoints.json file
+    endpoint_id: int
+    reserved: int = 0  # not important
+
+    def _gen_can_msg_data(self) -> bytes:
+        # 8 will set closed loop control mode
+        return struct.pack("<BHB", self.op_code, self.endpoint_id, self.reserved)
+
+
+class WriteParameterCommand(OdriveCanMessage):
+    """A command to write a value to a specific parameter on the motor. Described in the
+    flat_endpoints.json file for the specific motor firmware version.
+    """
+
+    cmd_id = 0x04
+
+    op_code = 0x01
+    # Endpoint ID as described in the flat_endpoints.json file
+    endpoint_id: int
+    reserved: int = 0  # not important
+
+    # Value type as described in the type component of the flat_endpoints.json file.
+    value_type: VALUE_TYPES
+    value: Union[float, int, bool]
+
+    @property
+    def format_char(self) -> _BYTE_FORMAT_CHARS:
+        return _BYTE_FORMAT_LOOKUP[self.value_type]
+
+    def _gen_can_msg_data(self) -> bytes:
+        # 8 will set closed loop control mode
+        return struct.pack(
+            "<BHB" + self.format_char,
+            self.op_code,
+            self.endpoint_id,
+            self.reserved,
+            self.value,
+        )
+
+
+class ParameterResponse(OdriveCanMessage):
+    """Response back from the motor indicating the value of the parameter that was
+    requested or just written.
+    """
+
+    cmd_id = 0x05
+
+    # Endpoint ID as described in the flat_endpoints.json file
+    endpoint_id: int
+    # Value type as described in the type component of the flat_endpoints.json file.
+    value_type: VALUE_TYPES
+    value: Union[float, int, bool]
+
+    @property
+    def format_char(self) -> _BYTE_FORMAT_CHARS:
+        return _BYTE_FORMAT_LOOKUP[self.value_type]
+
+    @property
+    def char_length(self) -> int:
+        return _BYTE_SIZE_LOOKUP[self.value_type]
+
+    def _parse_can_msg_data(self, msg: can.Message) -> None:
+        # Default message is 4 bytes with a variable value length.
+        msg_len = 4 + self.char_length
+        # Modifies the bytearray returned in the CAN message so it can be unpacked
+        # properly. If the message is too short, adds zeros to the end.
+        bytearray_slice = msg.data[0:msg_len]
+        mod_bytearray = bytearray_slice + b"\x00" * (msg_len - len(bytearray_slice))
+        msg_data_values = struct.unpack("<BHB" + self.format_char, mod_bytearray)
+        _, self.endpoint_id, _, self.value = msg_data_values
 
 
 class SetAxisStateMessage(OdriveCanMessage):
+    """Sets the axis state so the motor can move or is an idle state."""
+
     cmd_id = 0x07
 
     # The requested axis state, defined in the odrive enums.
@@ -234,6 +396,12 @@ class SetAxisStateMessage(OdriveCanMessage):
 
 
 class SetControllerMode(OdriveCanMessage):
+    """Sets the control mode of the motor. This is typically a velocity control mode but
+    could also be position or torque control. There is helper functionality that ODrive
+    provides as well that can control the motor to a specified position in a trapezoidal
+    profile.
+    """
+
     cmd_id = 0x0B
 
     # Control mode is a choice of voltage, torque, velocity and position control.
@@ -259,6 +427,8 @@ class SetControllerMode(OdriveCanMessage):
 
 
 class SetPositionMessage(OdriveCanMessage):
+    """Sets a target motor position in turns."""
+
     cmd_id = 0x0C
 
     # Position in revolutions.
@@ -276,6 +446,8 @@ class SetPositionMessage(OdriveCanMessage):
 
 
 class SetTorqueMessage(OdriveCanMessage):
+    """Sets a target torque for the motor."""
+
     cmd_id = 0x0E
 
     # Torque in Nm
@@ -286,6 +458,8 @@ class SetTorqueMessage(OdriveCanMessage):
 
 
 class SetVelocityMessage(OdriveCanMessage):
+    """Sets a target velocity for the motor."""
+
     cmd_id = 0x0D
 
     # float32 starts at 0 byte, unit: rev/s
@@ -298,7 +472,9 @@ class SetVelocityMessage(OdriveCanMessage):
 
 
 class EStop(OdriveCanMessage):
-    """Commands the motor to immediately stop by disarming with Odrive command ESTOP_REQUESTED."""
+    """Commands the motor to immediately stop by disarming with Odrive command
+    ESTOP_REQUESTED.
+    """
 
     cmd_id = 0x02
 

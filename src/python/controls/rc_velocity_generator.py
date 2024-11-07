@@ -1,5 +1,5 @@
 import collections
-from typing import DefaultDict, Dict, List
+from typing import DefaultDict
 
 from config import motor_config
 from pynput import keyboard
@@ -8,11 +8,8 @@ from pynput import keyboard
 class RCVelocityGenerator:
     """Inputs a motor velocity and the motor configs and will output the motor velocities to respond to key presses."""
 
-    def __init__(
-        self, velocity: float, motor_configs: List[motor_config.MotorConfig]
-    ) -> None:
-        self._velocity_default = velocity
-        self._motor_configs = motor_configs
+    def __init__(self, velocity_default: float) -> None:
+        self._velocity_default = velocity_default
         self._pressed_keys: DefaultDict[keyboard.Key, bool] = collections.defaultdict(
             lambda: False
         )
@@ -20,12 +17,8 @@ class RCVelocityGenerator:
     def update(self, key: keyboard.Key, *, pressed: bool) -> None:
         self._pressed_keys[key] = pressed
 
-    def velocities(self) -> Dict[motor_config.MotorConfig, float]:
-        return {
-            motor: self._calc_motor_velocity(motor) for motor in self._motor_configs
-        }
-
-    def _calc_motor_velocity(self, motor: motor_config.MotorConfig) -> float:
+    def velocity(self, motor: motor_config.MotorConfig) -> float:
+        """The motor velocity in turns / s to achieve the current RC key presses."""
         linear_vel = self._linear_velocity()
         angular_vel = self._angular_velocity()
 
@@ -56,6 +49,7 @@ class RCVelocityGenerator:
         return vel
 
     def _linear_velocity(self) -> float:
+        """The linear velocity the robot will travel forward."""
         vel = 0.0
         if self._up_key_pressed:
             vel += self._velocity_default

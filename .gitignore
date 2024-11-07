@@ -1,5 +1,6 @@
 */**/__pycache__
 */**/*.pyc
+*/**/.DS_Store
 **/.vscode
 *.egg-info/
 .idea
@@ -8,4 +9,3 @@
 .cache
 .docker
 .env
-env/.DS_Store
