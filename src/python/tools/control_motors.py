@@ -63,13 +63,13 @@ async def _async_print_msg(msg: messages.OdriveCanMessage) -> None:
 
 
 async def _stop_all_motors(bus: connection.CANSimple) -> None:
-    for motor in session.get_robot_motor_configs("beachbot-1"):
+    for motor in session.get_robot_motor_configs():
         await _set_velocity(bus, motor, 0.0)
 
 
 async def main(bus: connection.CANSimple) -> None:
     try:
-        for motor in session.get_robot_motor_configs("beachbot-1"):
+        for motor in session.get_robot_motor_configs():
             await _control_motor(bus, motor)
         # Print encoder feedback
         await _listen_to_cyclic_traffic(bus)
