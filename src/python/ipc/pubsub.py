@@ -13,6 +13,7 @@ from ipc import core
 
 # In general no message size should exceed this number.
 _MSG_SIZE = 1000
+# Minumum interval in seconds between when checking for a new message.
 _POLL_INTERVAL = 0.001
 
 BaseMessageT = TypeVar("BaseMessageT", bound="core.BaseMessage")
@@ -91,6 +92,7 @@ class Subscriber(Generic[BaseMessageT]):
 
             _raise_if_shm_id_changed(self._shm_id, cur_shm_id)
             if (msg := self._get_msg()) is None or msg == self._last_msg:
+                # Small sleep to let other concurrent processes run and not block.
                 await asyncio.sleep(_POLL_INTERVAL)
             else:
                 self._last_msg = msg
@@ -98,7 +100,8 @@ class Subscriber(Generic[BaseMessageT]):
                     await self._callback(msg)
                 else:
                     self._callback(msg)
-                    # Gives up the thread temporarily to let other processes run
+                    # Gives up the thread temporarily for regular callbacks to let other
+                    # concurrent processes run.
                     await asyncio.sleep(0.0)
 
     def close(self) -> None:
@@ -144,6 +147,7 @@ def _get_shm_id(shm: SharedMemory) -> Optional[int]:
         return None
 
 
+@functools.lru_cache
 def _shm_path(shm: SharedMemory) -> pathlib.Path:
     return pathlib.Path("/dev/shm") / shm.name
 
@@ -158,6 +162,7 @@ def _init_shm(channel: core.ChannelSpec) -> SharedMemory:
     return shm
 
 
+@functools.lru_cache
 def _is_coroutine(callback: Callable) -> bool:
     return asyncio.iscoroutinefunction(functools._unwrap_partial(callback))  # type: ignore[attr-defined]
 

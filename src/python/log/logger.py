@@ -1,7 +1,7 @@
 import pathlib
 import sys
 from datetime import datetime, timezone
-from typing import BinaryIO
+from typing import Any, BinaryIO
 
 _LOG_DIRECTORY = pathlib.Path("/var/log/beachbot")
 
@@ -23,6 +23,10 @@ class Logger:
 
     def debug(self, msg: str) -> None:
         self._write_to_log("DEBUG", msg)
+
+    def data(self, **data_kwargs: Any) -> None:
+        msg = ", ".join([f"{key}:{val}" for key, val in data_kwargs.items()])
+        self._write_to_log("DATA", msg)
 
     def info(self, msg: str) -> None:
         self._write_to_log("INFO", msg)

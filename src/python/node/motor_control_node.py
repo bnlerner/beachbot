@@ -1,4 +1,3 @@
-import asyncio
 import collections
 import math
 import os
@@ -17,6 +16,10 @@ from ipc import registry, session
 
 from node import base_node
 
+_CLOSED_LOOP_STATE_INT = (
+    closed_loop_state
+) = odrive_enums.AxisState.CLOSED_LOOP_CONTROL.value
+
 
 class MotorControlNode(base_node.BaseNode):
     """A Node to control the ODrive motor controllers via a CAN bus interface."""
@@ -26,7 +29,7 @@ class MotorControlNode(base_node.BaseNode):
         self._can_bus = connection.CANSimple(
             enums.CANInterface.ODRIVE, enums.BusType.SOCKET_CAN
         )
-        self._motor_configs = session.get_robot_motor_configs("beachbot-1")
+        self._motor_configs = session.get_robot_motor_configs()
 
         self._motor_axis_state: DefaultDict[int, int] = collections.defaultdict(
             lambda: -1
@@ -69,14 +72,11 @@ class MotorControlNode(base_node.BaseNode):
         axis_msg = can_messages.SetAxisStateMessage(node_id, axis_state=axis_state)
         await self._can_bus.send(axis_msg)
 
-    async def _wait_for_closed_loop_axis_state(self, node_id: int) -> None:
-        closed_loop_state = odrive_enums.AxisState.CLOSED_LOOP_CONTROL.value
-        while self._motor_axis_state[node_id] != closed_loop_state:
-            await asyncio.sleep(0.001)
-
     async def _send_motor_cmd(self, msg: ipc_messages.MotorCommandMessage) -> None:
-        # Wait for the motor to enter a closed loop axis state prior to sending any commands to it.
-        await self._wait_for_closed_loop_axis_state(msg.motor.node_id)
+        # Return early and wait until the motor enters a closed loop axis state prior to
+        # sending any commands to it.
+        if not self._ready_to_move(msg.motor.node_id):
+            return None
 
         vel_msg = can_messages.SetVelocityMessage(
             msg.motor.node_id, velocity=msg.velocity, torque=0.0
@@ -92,6 +92,9 @@ class MotorControlNode(base_node.BaseNode):
         self, msg: can_messages.EncoderEstimatesMessage
     ) -> None:
         self._motor_velocity[msg.node_id] = msg.vel_estimate
+
+    def _ready_to_move(self, node_id: int) -> bool:
+        return self._motor_axis_state[node_id] == _CLOSED_LOOP_STATE_INT
 
 
 if __name__ == "__main__":

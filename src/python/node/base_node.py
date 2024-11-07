@@ -25,6 +25,7 @@ class BaseNode:
         self._add_cleanup_signals()
 
     def start(self) -> None:
+        """Starts the node and spins until its finished."""
         log.info(f"Starting node: {self._node_id}")
         try:
             asyncio.run(self._async_run())
@@ -58,7 +59,7 @@ class BaseNode:
     async def _main(self) -> None:
         exception: Optional[Exception] = None
         try:
-            self._add_pubsub_functions()
+            self._add_subscriber_functions()
             self._create_tasks()
             await asyncio.gather(*self._background_tasks)
         except Exception as err:
@@ -79,7 +80,7 @@ class BaseNode:
         for pub in self._publishers.values():
             pub.close()
 
-    def _add_pubsub_functions(self) -> None:
+    def _add_subscriber_functions(self) -> None:
         for channel, callback in self._subscriber_callbacks.items():
             sub = pubsub.Subscriber(self._node_id, channel, callback)
             self._subscribers.append(sub)

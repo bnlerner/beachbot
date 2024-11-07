@@ -20,14 +20,14 @@ _PUBLISH_RATE = 100  # In Hz
 class RCRobotNode(base_node.BaseNode):
     """A node that takes in RC commands and writes them as target motor velocities.
 
-    NOTE: Requires setting the DISPLAY environment variable like so prior to running on beachbot
+    NOTE: Requires setting the DISPLAY environment variable prior to running on robot
     DISPLAY=":1" python3 src/python/node/rc_node.py
     """
 
     def __init__(self) -> None:
         super().__init__(registry.NodeIDs.RC)
 
-        self._motor_configs = session.get_robot_motor_configs("beachbot-1")
+        self._motor_configs = session.get_robot_motor_configs()
         self._rc_listener = keyboard.Listener(
             on_press=self._on_press, on_release=self._on_release
         )
@@ -43,9 +43,6 @@ class RCRobotNode(base_node.BaseNode):
         self.add_tasks(self._rc_listener.start, self._control_motors)
 
     def _on_press(self, key: Optional[Union[keyboard.Key, keyboard.KeyCode]]) -> None:
-        if key == keyboard.Key.esc:
-            self.shutdown()
-
         if isinstance(key, keyboard.Key):
             self._rc_velocity_generator.update(key, pressed=True)
 

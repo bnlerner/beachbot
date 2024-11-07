@@ -99,12 +99,24 @@ class UbloxDataNode(base_node.BaseNode):
                 pitch_acceleration=veh_attitude.accPitch,
                 heading_acceleration=veh_attitude.accHeading,
             )
+            log.data(
+                roll=veh_attitude.roll,
+                pitch=veh_attitude.pitch,
+                heading=veh_attitude.heading,
+                roll_rate=veh_dyn.xAngRate,
+                pitch_rate=veh_dyn.yAngRate,
+                yaw_rate=veh_dyn.zAngRate,
+                roll_acceleration=veh_attitude.accRoll,
+                pitch_acceleration=veh_attitude.accPitch,
+                heading_acceleration=veh_attitude.accHeading,
+            )
         else:
             self._rpy_dyn_data = None
 
     def _update_gps_data(self) -> None:
         if coords := self._ublox_gps.geo_coords():
             self._gps_data = _GPSData(latitude=coords.lat, longitude=coords.lon)
+            log.data(latitude=coords.lat, longitude=coords.lon)
         else:
             self._gps_data = None
 

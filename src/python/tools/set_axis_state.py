@@ -1,8 +1,8 @@
 import argparse
 import asyncio
-import json
 import os
 import sys
+
 from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 
 # Get the path to the root of the project
@@ -10,9 +10,13 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from drivers.can import connection, enums, messages
 
-async def _set_state(bus: connection.CANSimple, node_id: int, axis_state: odrive_enums.AxisState) -> None:
+
+async def _set_state(
+    bus: connection.CANSimple, node_id: int, axis_state: odrive_enums.AxisState
+) -> None:
     msg = messages.SetAxisStateMessage(node_id=node_id, axis_state=axis_state)
     await bus.send(msg)
+
 
 async def main() -> None:
     parser = argparse.ArgumentParser(

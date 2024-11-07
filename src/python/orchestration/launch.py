@@ -5,7 +5,8 @@ import signal
 import subprocess
 import time
 from types import FrameType
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Literal
+import asyncio
 
 import pydantic
 import system_info
@@ -16,6 +17,7 @@ _OPTIONS = "-u"
 
 
 class NodeConfig(pydantic.BaseModel):
+    """Describes the node and how to run it."""
     file_name: str
     args: str = ""
     env_vars: Dict[str, str] = {}
@@ -23,6 +25,10 @@ class NodeConfig(pydantic.BaseModel):
     @property
     def file_path(self) -> pathlib.Path:
         return _NODE_FILE_PATH / self.file_name
+
+    ####################################################################################
+    # CONFIGURED NODES #################################################################
+    ####################################################################################
 
     @classmethod
     def rc_node(cls) -> NodeConfig:
@@ -38,39 +44,56 @@ class NodeConfig(pydantic.BaseModel):
 
 
 class Orchestrator:
-    def __init__(self, profile: str):
-        self._profile = _gen_profile(profile)
+    """Allows running multiple nodes, each in a different process via a profile.
+    Cancellation of all nodes is possible by stopping the orchestrator. Monitors
+    nodes after creation and stops all other nodes if one has exited.
+
+    Opts not to use containers for size constraints and no need to separate environments
+    but this architecture could support that in the future using either docker or docker
+    compose.
+    """
+    def __init__(self, mode: Literal["hw", "rc"]):
+        self._profile = _gen_profile(mode)
         # List to keep track of child processes
         self._processes: List[subprocess.Popen] = []
         self._add_cleanup_signals()
-        self._running: bool
+        self._running: bool = False
 
     async def run(self) -> None:
         """Start a new node process."""
         self._running = True
-        self._create_sub_processes()
-        await self._spin_and_poll_subprocesses()
+        self._create_processes()
+        # Any error causing a node to exit effectively causes this method to exit,
+        # allowing the user to stop the orchestrator if desired.
+        await self._monitor_subprocesses()
 
-    def _create_sub_processes(self) -> None:
+    def _create_processes(self) -> None:
         for node in self._profile:
             process = subprocess.Popen(
-                [_CMD, _OPTIONS, node.file_path, node.args],  # Command and arguments
+                [_CMD, _OPTIONS, node.file_path, node.args],
                 env=node.env_vars,
-                stdout=subprocess.PIPE,  # Redirect stdout for monitoring
-                stderr=subprocess.PIPE,  # Redirect stderr for monitoring
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                start_new_session=True,  # Start each process in a new process group
+                # Start each process in a new process group. Each process is within a
+                # new thread as well to allow the CPU scheduler to load balance between
+                # CPU cores as desired. We opt to not force processes onto CPU cores.
+                start_new_session=True,
             )
             self._processes.append(process)
             print(f"PID: {process.pid}, Started Node: {node.file_name}")
 
-    async def _spin_and_poll_subprocesses(self) -> None:
+    async def _monitor_subprocesses(self) -> None:
+        """Monitors each created subprocess for any nodes that have exited and prints
+        any output. Any process that exits for any reason triggers all other processes
+        to exit.
+        """
         while True:
             if any([p.poll() is not None for p in self._processes]):
                 self._gather_all_errors()
                 return
 
-            time.sleep(0.1)
+            await asyncio.sleep(0.1)
 
     def _gather_all_errors(self) -> None:
         for process in self._processes:
@@ -84,7 +107,9 @@ class Orchestrator:
             )
 
     def stop(self) -> None:
-        """Send a SIGINT signal to all child processes to stop them."""
+        """Stops all node processes if they are still running. Safe to call multiple
+        times as processes are only stopped once.
+        """
         if not self._running:
             return
 
@@ -117,7 +142,7 @@ class Orchestrator:
             signal.signal(signal_, self._rcv_signal)
 
 
-def _gen_profile(profile: str) -> List[NodeConfig]:
+def _gen_profile(profile: Literal["hw", "rc"]) -> List[NodeConfig]:
     if profile == "hw":
         return [NodeConfig.ublox_data_node(), NodeConfig.motor_control_node()]
     elif profile == "rc":
