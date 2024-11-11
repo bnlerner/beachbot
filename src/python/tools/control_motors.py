@@ -18,14 +18,12 @@ from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from config import motor_config
+from drivers import primitives
 from drivers.can import connection, enums, messages
 from ipc import session
 
 
-async def _control_motor(
-    bus: connection.CANSimple, motor: motor_config.MotorConfig
-) -> None:
+async def _control_motor(bus: connection.CANSimple, motor: primitives.Motor) -> None:
     """Node ID must match `<odrv>.axis0.config.can.node_id`. The default is 0."""
     # Put axis into closed loop control state
     await _set_control_loop_state(bus, motor.node_id)
@@ -40,7 +38,7 @@ async def _set_control_loop_state(bus: connection.CANSimple, node_id: int) -> No
 
 
 async def _set_velocity(
-    bus: connection.CANSimple, motor: motor_config.MotorConfig, velocity: float
+    bus: connection.CANSimple, motor: primitives.Motor, velocity: float
 ) -> None:
     """Sets velocity in turns/s"""
     signed_velocity = motor.direction * velocity
@@ -63,13 +61,13 @@ async def _async_print_msg(msg: messages.OdriveCanMessage) -> None:
 
 
 async def _stop_all_motors(bus: connection.CANSimple) -> None:
-    for motor in session.get_robot_motor_configs():
+    for motor in session.get_robot_motors():
         await _set_velocity(bus, motor, 0.0)
 
 
 async def main(bus: connection.CANSimple) -> None:
     try:
-        for motor in session.get_robot_motor_configs():
+        for motor in session.get_robot_motors():
             await _control_motor(bus, motor)
         # Print encoder feedback
         await _listen_to_cyclic_traffic(bus)

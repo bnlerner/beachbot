@@ -7,9 +7,8 @@ from typing import Optional, Union
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from config import motor_config
 from controls import rc_velocity_generator
-from ipc import core, messages, registry, session
+from ipc import messages, registry, session
 from pynput import keyboard
 
 from node import base_node
@@ -27,7 +26,7 @@ class RCRobotNode(base_node.BaseNode):
     def __init__(self) -> None:
         super().__init__(registry.NodeIDs.RC)
 
-        self._motor_configs = session.get_robot_motor_configs()
+        self._motor_configs = session.get_robot_motors()
         self._rc_listener = keyboard.Listener(
             on_press=self._on_press, on_release=self._on_release
         )
@@ -60,23 +59,11 @@ class RCRobotNode(base_node.BaseNode):
             sleep_time = total_time - write_time
             await asyncio.sleep(sleep_time)
 
-    def _get_motor_channel(self, motor: motor_config.MotorConfig) -> core.ChannelSpec:
-        if motor.location == motor_config.MotorLocation.FRONT_LEFT:
-            return registry.Channels.FRONT_LEFT_MOTOR_CMD
-        elif motor.location == motor_config.MotorLocation.FRONT_RIGHT:
-            return registry.Channels.FRONT_RIGHT_MOTOR_CMD
-        elif motor.location == motor_config.MotorLocation.REAR_LEFT:
-            return registry.Channels.REAR_LEFT_MOTOR_CMD
-        elif motor.location == motor_config.MotorLocation.REAR_RIGHT:
-            return registry.Channels.REAR_RIGHT_MOTOR_CMD
-        else:
-            raise ValueError("unknown channel")
-
     def _publish_motor_cmd_msgs(self) -> None:
         for motor in self._motor_configs:
             velocity = self._rc_velocity_generator.velocity(motor)
             msg = messages.MotorCommandMessage(motor=motor, velocity=velocity)
-            channel = self._get_motor_channel(motor)
+            channel = registry.motor_channel(motor)
             self.publish(channel, msg)
 
     async def shutdown_hook(self) -> None:

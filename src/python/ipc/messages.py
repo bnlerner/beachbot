@@ -1,4 +1,5 @@
-from config import motor_config
+from drivers import primitives as hw_primitives
+from planning import primitives as pl_primitives
 
 from ipc import core
 
@@ -15,6 +16,7 @@ class VehicleDynamicsMessage(core.BaseMessage):
 
     roll: float
     pitch: float
+    # TODO: Verify if this heading is in degrees or radians.
     heading: float
     roll_rate: float
     pitch_rate: float
@@ -27,5 +29,11 @@ class VehicleDynamicsMessage(core.BaseMessage):
 class MotorCommandMessage(core.BaseMessage):
     """The target motor commands to use for control of each motor."""
 
-    motor: motor_config.MotorConfig
+    motor: hw_primitives.Motor
     velocity: float
+
+
+class NavigateRequest(core.Request):
+    """A location to navigate to."""
+
+    target: pl_primitives.NavigationPoint

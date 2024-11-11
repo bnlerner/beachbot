@@ -29,7 +29,7 @@ class MotorControlNode(base_node.BaseNode):
         self._can_bus = connection.CANSimple(
             enums.CANInterface.ODRIVE, enums.BusType.SOCKET_CAN
         )
-        self._motor_configs = session.get_robot_motor_configs()
+        self._motor_configs = session.get_robot_motors()
 
         self._motor_axis_state: DefaultDict[int, int] = collections.defaultdict(
             lambda: -1

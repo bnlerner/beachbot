@@ -1,7 +1,8 @@
 import collections
 from typing import DefaultDict
 
-from config import motor_config
+from config import robot_config
+from drivers import primitives
 from pynput import keyboard
 
 
@@ -17,19 +18,19 @@ class RCVelocityGenerator:
     def update(self, key: keyboard.Key, *, pressed: bool) -> None:
         self._pressed_keys[key] = pressed
 
-    def velocity(self, motor: motor_config.MotorConfig) -> float:
+    def velocity(self, motor: primitives.Motor) -> float:
         """The motor velocity in turns / s to achieve the current RC key presses."""
         linear_vel = self._linear_velocity()
         angular_vel = self._angular_velocity()
 
         if motor.location in (
-            motor_config.MotorLocation.FRONT_LEFT,
-            motor_config.MotorLocation.REAR_LEFT,
+            robot_config.DrivetrainLocation.FRONT_LEFT,
+            robot_config.DrivetrainLocation.REAR_LEFT,
         ):
             return (linear_vel - angular_vel) * motor.direction
         elif motor.location in (
-            motor_config.MotorLocation.FRONT_RIGHT,
-            motor_config.MotorLocation.REAR_RIGHT,
+            robot_config.DrivetrainLocation.FRONT_RIGHT,
+            robot_config.DrivetrainLocation.REAR_RIGHT,
         ):
             return (linear_vel + angular_vel) * motor.direction
         else:

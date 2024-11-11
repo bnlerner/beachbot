@@ -3,6 +3,9 @@ publisher to a subscriber.
 """
 from types import SimpleNamespace
 
+from config import robot_config
+from drivers import primitives
+
 from ipc import core, messages
 
 
@@ -27,9 +30,28 @@ class Channels(SimpleNamespace):
     )
 
 
+class Requests(SimpleNamespace):
+    NAVIGATE = core.RequestSpec("navigate", messages.NavigateRequest)
+
+
 class NodeIDs(SimpleNamespace):
     """A registry of Node IDs available to use."""
 
     MOTOR_CONTROL = core.NodeID(name="motor_control")
+    NAVIGATION = core.NodeID(name="navigation")
     RC = core.NodeID(name="rc")
     UBLOX_DATA = core.NodeID(name="ublox_data")
+
+
+def motor_channel(motor: primitives.Motor) -> core.ChannelSpec:
+    """Motor channel from the config."""
+    if motor.location == robot_config.DrivetrainLocation.FRONT_LEFT:
+        return Channels.FRONT_LEFT_MOTOR_CMD
+    elif motor.location == robot_config.DrivetrainLocation.FRONT_RIGHT:
+        return Channels.FRONT_RIGHT_MOTOR_CMD
+    elif motor.location == robot_config.DrivetrainLocation.REAR_LEFT:
+        return Channels.REAR_LEFT_MOTOR_CMD
+    elif motor.location == robot_config.DrivetrainLocation.REAR_RIGHT:
+        return Channels.REAR_RIGHT_MOTOR_CMD
+    else:
+        raise ValueError("unknown channel")

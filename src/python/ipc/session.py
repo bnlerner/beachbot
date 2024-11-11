@@ -1,27 +1,25 @@
 from typing import List, Optional
 
 import system_info
-from config import motor_config
+from config import robot_config
+from drivers import primitives
 
 _MOTOR_CONFIG_PATH = system_info.get_root_project_directory() / "env" / "motor_configs"
 
 
-def get_motor_config(
-    robot_name: str, location: motor_config.MotorLocation
-) -> motor_config.MotorConfig:
-    """Get a single motor config for the robot."""
+def get_motor(
+    robot_name: str, location: robot_config.DrivetrainLocation
+) -> primitives.Motor:
+    """Get a single motor for the robot."""
     file_path = _MOTOR_CONFIG_PATH / robot_name / f"{location.value.lower()}.json"
-    return motor_config.MotorConfig.from_json(file_path)
+    return primitives.Motor.from_json(file_path)
 
 
-def get_robot_motor_configs(
-    *, robot_name: Optional[str] = None
-) -> List[motor_config.MotorConfig]:
-    """Get all motor configs for this robot."""
+def get_robot_motors(*, robot_name: Optional[str] = None) -> List[primitives.Motor]:
+    """Get all motor for this robot."""
     robot_name = robot_name or _get_robot_name()
     return [
-        get_motor_config(robot_name, location)
-        for location in motor_config.MotorLocation
+        get_motor(robot_name, location) for location in robot_config.DrivetrainLocation
     ]
 
 

@@ -5,7 +5,7 @@ from types import FrameType
 from typing import Callable, Dict, List, Optional
 
 import log
-from ipc import core, pubsub
+from ipc import core, pubsub, request
 
 
 class BaseNode:
@@ -22,6 +22,7 @@ class BaseNode:
         self._subscriber_callbacks: Dict[core.ChannelSpec, Callable] = {}
         self._subscribers: List[pubsub.Subscriber] = []
         self._publishers: Dict[core.ChannelSpec, pubsub.Publisher] = {}
+        self._request_server: Optional[request.RequestServer] = None
         self._add_cleanup_signals()
 
     def start(self) -> None:
@@ -44,6 +45,14 @@ class BaseNode:
         for channel in channels:
             self._publishers[channel] = pubsub.Publisher(self._node_id, channel)
 
+    def set_request_server(
+        self, request_spec: core.RequestSpec, request_func: Callable
+    ) -> None:
+        """Sets the request this server will respond to."""
+        self._request_server = request.RequestServer(
+            self._node_id, request_spec, request_func
+        )
+
     def publish(self, channel: core.ChannelSpec, msg: core.BaseMessage) -> None:
         if channel not in self._publishers:
             raise RuntimeError(
@@ -59,7 +68,7 @@ class BaseNode:
     async def _main(self) -> None:
         exception: Optional[Exception] = None
         try:
-            self._add_subscriber_functions()
+            self._add_pubsub_functions()
             self._create_tasks()
             await asyncio.gather(*self._background_tasks)
         except Exception as err:
@@ -80,11 +89,17 @@ class BaseNode:
         for pub in self._publishers.values():
             pub.close()
 
-    def _add_subscriber_functions(self) -> None:
+        if self._request_server:
+            self._request_server.close()
+
+    def _add_pubsub_functions(self) -> None:
         for channel, callback in self._subscriber_callbacks.items():
             sub = pubsub.Subscriber(self._node_id, channel, callback)
             self._subscribers.append(sub)
             self._task_functions.append(sub.listen)
+
+        if self._request_server:
+            self._task_functions.append(self._request_server.start)
 
     def _create_tasks(self) -> None:
         for function in self._task_functions:
