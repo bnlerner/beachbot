@@ -44,9 +44,12 @@ ignore = [
     "PLR1714",
     # Ignore lowercase function names, since we use capitals for HTTP endpoints.
     "N802",
-    # Igore lowercase variables in functions, since we often capitalize constants
+    # Ignore lowercase variables in functions, since we often capitalize constants
     # in tests.
     "N806",
+    # Ignore Module level import not at top of file to allow us to set the path when
+    # launching a node level file.
+    "E402",
 ]
 
 # Disable bugbear and pylint automatic fixes, as these can lead to type errors

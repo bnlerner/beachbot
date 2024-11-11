@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import pathlib
 import signal
 import subprocess
-import time
 from types import FrameType
-from typing import Dict, List, Optional, Literal
-import asyncio
+from typing import Dict, List, Literal, Optional
 
 import pydantic
 import system_info
@@ -18,6 +17,7 @@ _OPTIONS = "-u"
 
 class NodeConfig(pydantic.BaseModel):
     """Describes the node and how to run it."""
+
     file_name: str
     args: str = ""
     env_vars: Dict[str, str] = {}
@@ -52,6 +52,7 @@ class Orchestrator:
     but this architecture could support that in the future using either docker or docker
     compose.
     """
+
     def __init__(self, mode: Literal["hw", "rc"]):
         self._profile = _gen_profile(mode)
         # List to keep track of child processes
