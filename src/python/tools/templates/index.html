@@ -1,80 +1,76 @@
-<html>
-    <head>
-        <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
-        <link href="http://fonts.googleapis.com/css?family=Orbitron" rel="stylesheet" type="text/css" />
-        <meta name="viewport" content="width=device-width, user-scalable=no">
-	    <script src="{{ url_for('static', filename='js/jquery-3.3.1.min.js')}}"></script>
-        <script src="{{ url_for('static', filename='js/socket.io.js') }}"></script>
-        <script src="{{ url_for('static', filename='js/joystick.js') }}"></script>
-    </head>
-    <body>
-        <div id="joystick" class="joystick_zone"></div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="http://fonts.googleapis.com/css?family=Orbitron" rel="stylesheet" type="text/css" />
+    <style>
+        #zone_joystick {
+            width: 100vw;  /* 100% of viewport width */
+            height: 60vh; /* 60% of viewport height */
+            margin: 0 auto;
+            background-color: #f0f0f0;
+            position: relative;
+        }
+        #coordinates {
+            text-align: center;
+            font-size: 1.5em;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Control Beachbot via RC</h1>
+    <h3>Touch below to start to control the robot via a joystick.</h3>
+    <div id="zone_joystick" style="float:left;width:100%;margin:0;padding:0;"></div>
+    <div id="coordinates">X: 0, Y: 0</div> <!-- Display coordinates here -->
 
-        <div class="middle_zone">
-            <div id="ledzone" class="led_zone">
-		        <div id="connex" style="float:left;width:100%;margin:0;padding:0;">
-                    <div class="led-box"><div class="led-red"></div><div class="led-text">Not Connected</div></div>
-                </div>
-            </div>
-            <div id="infozone" class="info_zone">
-                <p style="margin:0;padding:0;text-align:center;border-bottom:1px solid #333;">-=<| robotcontrol v1.0 |>=-</p>
-                <div id="output0" style="float:left;width:100%;">Joystick left</div>
-                <div id="output1" style="float:left;width:100%;">Joystick right</div>
-                <div id="output2" style="float:left;width:100%;">Buttons</div>
-            </div>
+    <!-- Include NippleJS -->
+    <script src="{{ url_for('static', filename='js/nipplejs.js') }}"></script>
+    <script>
+        // Initialize the joystick using NippleJS
+        const joystickContainer = document.getElementById('zone_joystick');
+        const coordinatesDisplay = document.getElementById('coordinates');
 
-            <div id="buttonzone">
-                <a href="#" id="button1" class="button buttonA noSelect"></a>
-                <a href="#" id="button2" class="button buttonB noSelect" style="float:right;"></a>
-            </div>
-        </div>
+        const joystick = nipplejs.create({
+            zone: joystickContainer,
+            size: 200,
+            color: 'blue',
+        });
+        // Listen for joystick move events and send data to Flask server
+        joystick.on('move', (event, data) => {
+            if (data && data.vector) {
+                const x = data.vector.x.toFixed(2);
+                const y = data.vector.y.toFixed(2);
 
-        <div id="joystick2" class="joystick_zone"></div>
+                // Update the coordinates display
+                coordinatesDisplay.textContent = `X: ${x}, Y: ${y}`;
 
-        <script type="text/javascript">
-            var socket_status = io.connect('http://'+location.host+"/status");
-            var socket_control = io.connect('http://'+location.host+"/control");
+                // Send the joystick data to the server
+                fetch('/joystick_input', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ x: x, y: y, stopped: false})
+                }).then(response => response.json())
+                  .then(data => console.log(data));
+            }
+        });
+        // Send zeros on joystick release
+        joystick.on('end', () => {
+            fetch('/joystick_input', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ x: 0.0, y: 0.0, stopped: true})
+            }).then(response => response.json())
+              .then(data => console.log("Joystick released:", data));
 
-            $(document).ready(function(){
-                /* connected display */
-                setInterval(function(){
-                    if(socket_status.connected){
-                        $('#connex').html('<div class="led-box"><div class="led-blue"></div><div class="led-text">Connected</div></div>');
-                    }else{
-                        $('#connex').html('<div class="led-box"><div class="led-red"></div><div class="led-text">Not Connected</div></div>');
-                    }
-                }, 1000);
+            // Update the coordinates display
+            coordinatesDisplay.textContent = `X: 0.0, Y: 0.0`;
 
-                $('#output').text("starting");
-
-                /******************************************
-                  BUTTONS
-                  *****************************************/
-                $(document).on('touchstart touchmove', '#button1', function(evt){
-                    $('#output2').html("Button1");
-                    socket_control.emit('control', {data:{"A":1}});
-                    evt.preventDefault();
-                });
-                $(document).on('touchstart touchmove', '#button2', function(evt){
-                    socket_control.emit('control', {data:{"B":1}});
-                    $('#output2').html("Button2");
-                    evt.preventDefault();
-                });
-
-                /******************************************
-                  JOYSTICKS
-                  *****************************************/
-                //socket_control.emit('control', {data:{"left":[(data.distance/options.size), data.angle.degree]}});
-                var test = new Joystick("joystick", 0, socket_control, "left");
-                var test2 = new Joystick("joystick2", 1, socket_control, "right");
-
-                window.oncontextmenu = function(evt){
-                    evt.preventDefault();
-                    evt.stopPropagation();
-                    return false;
-                }
-            });
-        </script>
-
-    </body>
+        });
+    </script>
+</body>
 </html>
