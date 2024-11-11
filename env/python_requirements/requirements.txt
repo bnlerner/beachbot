@@ -2,7 +2,11 @@ odrive==0.6.9.post0
 pydantic==2.9.2
 python-can==4.4.2
 pynput==1.7.7
-types-pynput==1.7.7.20240813
+types-pynput==1.7.7
+ruff==0.1.8
+sparkfun-ublox-gps==1.1.5
+pyserial==3.5
+spidev==3.6
 Flask==3.0.3
 gevent-websocket==0.10.1
 Flask-Cors==5.0.0
