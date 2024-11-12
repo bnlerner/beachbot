@@ -6,7 +6,9 @@ from pynput import keyboard
 
 
 class RCVelocityGenerator:
-    """Inputs a motor velocity and the motor configs and will output the motor velocities to respond to key presses."""
+    """Generates a velocity for a motor config based on the input keyboard key
+    presses.
+    """
 
     def __init__(self, velocity_default: float) -> None:
         self._velocity_default = velocity_default

@@ -22,11 +22,7 @@ if __name__ == "__main__":
     _set_project_path()
     parser = argparse.ArgumentParser(description="Entry point to run nodes.")
     parser.add_argument(
-        "--profile",
-        type=str,
-        required=True,
-        choices=["hw", "rc"],
-        help="Name of profile to run.",
+        "profile", type=str, choices=["ui", "rc"], help="Name of profile to run."
     )
     args = parser.parse_args()
     from orchestration import launch
