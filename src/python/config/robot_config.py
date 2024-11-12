@@ -18,7 +18,8 @@ class Wheel(pydantic.BaseModel):
     # 7.1", in meters
     tread: float = 0.1803
 
-
+# TODO: Move the location and motor into a driver primitives since its not really a
+# config.
 # Str inheritance required so pydantic treats this as a string when
 # serializing base model objects.
 class DrivetrainLocation(str, enum.Enum):
