@@ -1,0 +1,10 @@
+[Unit]
+Description=Can network setup
+
+[Service]
+ExecStart=/usr/local/bin/setup_can.sh
+Type=oneshot
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
