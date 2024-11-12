@@ -6,7 +6,7 @@ from pynput import keyboard
 
 
 class RCVelocityGenerator:
-    """Generates a velocity for an inputs a motor config based on the input keyboard key
+    """Generates a velocity for a motor config based on the input keyboard key
     presses.
     """
 
