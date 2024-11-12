@@ -32,7 +32,9 @@ class RCRobotNode(base_node.BaseNode):
         )
 
         # Moves at 1.0 turns/s default for any RC command
-        self._rc_velocity_generator = rc_velocity_generator.RCVelocityGenerator(1.0)
+        self._rc_velocity_generator = rc_velocity_generator.RCVelocityGenerator(
+            session.get_robot_config()
+        )
         self.add_publishers(
             registry.Channels.FRONT_LEFT_MOTOR_CMD,
             registry.Channels.FRONT_RIGHT_MOTOR_CMD,

@@ -7,14 +7,11 @@ from flask import Flask, Response, jsonify, render_template, request
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from controls import nav_velocity_generator
 from ipc import core, messages, pubsub, registry, session
+from models import constants, motor_velocity_model
 
 _INDEX_PATH = "index.html"
 _JOYSTICK_ENDPOINT = "/joystick_input"
-# Modifies the velocity as the incoming velocity is always capped betwen -1 and 1 to
-# higher target velocities if desired.
-_VELOCITY_MODIFIER = 1.0
 
 
 class UINode:
@@ -29,7 +26,9 @@ class UINode:
         self._debug = debug
 
         self._motor_configs = session.get_robot_motors()
-        self._controller = nav_velocity_generator.NavVelocityGenerator()
+        self._controller = motor_velocity_model.MotorVelocityModel(
+            session.get_robot_config()
+        )
         self._app = Flask(__name__)
         self._setup_routes()
         self._stop_robot: bool = True
@@ -79,9 +78,9 @@ class UINode:
         if not isinstance(self._stop_robot, bool):
             raise ValueError(f"Unexpected stop robot type {self._stop_robot=}")
 
-        linear_velocity = _VELOCITY_MODIFIER * y
+        linear_velocity = constants.MAX_LINEAR_SPEED * y
         # Negative since positive spin is to the left.
-        angular_velocity = _VELOCITY_MODIFIER * -x
+        angular_velocity = constants.MAX_ANGULAR_SPEED * -x
         self._controller.update(linear_velocity, angular_velocity)
 
     def _publish_motor_cmd_msgs(self) -> None:

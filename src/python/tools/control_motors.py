@@ -41,7 +41,8 @@ async def _set_velocity(
     bus: connection.CANSimple, motor: robot_config.Motor, velocity: float
 ) -> None:
     """Sets velocity in turns/s"""
-    signed_velocity = motor.direction * velocity
+    direction = -1 if motor.side == "left" else 1
+    signed_velocity = direction * velocity
     vel_msg = messages.SetVelocityMessage(
         motor.node_id, velocity=signed_velocity, torque=0.0
     )

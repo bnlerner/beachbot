@@ -2,7 +2,11 @@ import collections
 from typing import DefaultDict
 
 from config import robot_config
+from models import motor_velocity_model
 from pynput import keyboard
+
+_LINEAR_VELOCITY_DEFAULT = 2  # m/s
+_ANGULAR_VELOCITY_DEFAULT = 5  # deg/s
 
 
 class RCVelocityGenerator:
@@ -10,32 +14,21 @@ class RCVelocityGenerator:
     presses.
     """
 
-    def __init__(self, velocity_default: float) -> None:
-        self._velocity_default = velocity_default
+    def __init__(self, config: robot_config.Beachbot) -> None:
         self._pressed_keys: DefaultDict[keyboard.Key, bool] = collections.defaultdict(
             lambda: False
         )
+        self._motor_model = motor_velocity_model.MotorVelocityModel(config)
 
     def update(self, key: keyboard.Key, *, pressed: bool) -> None:
         self._pressed_keys[key] = pressed
+        linear_vel = self._linear_velocity()
+        angular_vel = self._angular_velocity()
+        self._motor_model.update(linear_vel, angular_vel)
 
     def velocity(self, motor: robot_config.Motor) -> float:
         """The motor velocity in turns / s to achieve the current RC key presses."""
-        linear_vel = self._linear_velocity()
-        angular_vel = self._angular_velocity()
-
-        if motor.location in (
-            robot_config.DrivetrainLocation.FRONT_LEFT,
-            robot_config.DrivetrainLocation.REAR_LEFT,
-        ):
-            return (linear_vel - angular_vel) * motor.direction
-        elif motor.location in (
-            robot_config.DrivetrainLocation.FRONT_RIGHT,
-            robot_config.DrivetrainLocation.REAR_RIGHT,
-        ):
-            return (linear_vel + angular_vel) * motor.direction
-        else:
-            raise ValueError(f"Unknown motor config location {motor=}")
+        return self._motor_model.velocity(motor)
 
     def _angular_velocity(self) -> float:
         """Angular velocity assuming that the velocity rotates about the robots body axis which would be with
@@ -43,10 +36,10 @@ class RCVelocityGenerator:
         """
         vel = 0.0
         if self._right_key_pressed:
-            vel -= self._velocity_default
+            vel -= _ANGULAR_VELOCITY_DEFAULT
         # Left turn is a positive angular velocity.
         if self._left_key_pressed:
-            vel += self._velocity_default
+            vel += _ANGULAR_VELOCITY_DEFAULT
 
         return vel
 
@@ -54,9 +47,9 @@ class RCVelocityGenerator:
         """The linear velocity the robot will travel forward."""
         vel = 0.0
         if self._up_key_pressed:
-            vel += self._velocity_default
+            vel += _LINEAR_VELOCITY_DEFAULT
         if self._down_key_pressed:
-            vel -= self._velocity_default
+            vel -= _LINEAR_VELOCITY_DEFAULT
 
         return vel
 

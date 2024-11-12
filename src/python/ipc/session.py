@@ -14,6 +14,19 @@ def get_motor(
     return robot_config.Motor.from_json(file_path)
 
 
+def get_robot_config() -> robot_config.Beachbot:
+    """The robots config. Eventually configurable by different beachbots but for now its
+    only the one.
+    """
+    wheel = robot_config.Wheel()
+    return robot_config.Beachbot(
+        drivetrain=[
+            robot_config.Drivetrain(location=location, wheel=wheel)
+            for location in robot_config.DrivetrainLocation
+        ]
+    )
+
+
 def get_robot_motors(*, robot_name: Optional[str] = None) -> List[robot_config.Motor]:
     """Get all motor for this robot."""
     robot_name = robot_name or _get_robot_name()

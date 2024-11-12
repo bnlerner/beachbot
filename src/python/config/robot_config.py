@@ -3,6 +3,7 @@ from __future__ import annotations
 import enum
 import functools
 import json
+import math
 import pathlib
 from typing import List, Literal
 
@@ -17,6 +18,11 @@ class Wheel(pydantic.BaseModel):
     diameter: float = 0.3302
     # 7.1", in meters
     tread: float = 0.1803
+
+    @property
+    def circumference(self) -> float:
+        return self.diameter * math.pi
+
 
 # TODO: Move the location and motor into a driver primitives since its not really a
 # config.
@@ -41,19 +47,16 @@ class Motor(pydantic.BaseModel):
     node_id: int
     location: DrivetrainLocation
 
-    @property
-    def direction(self) -> Literal[1, -1]:
-        """The velocity direction relative to the mount point on the chassis.
-        Motors on the left chassis need to turn in reverse to all respond in the
-        same way to a positive body velocity.
-        """
+    @functools.cached_property
+    def side(self) -> Literal["left", "right"]:
+        """Side of the robot the motor is on."""
         if self.location in (
             DrivetrainLocation.FRONT_LEFT,
             DrivetrainLocation.REAR_LEFT,
         ):
-            return -1
+            return "left"
         else:
-            return 1
+            return "right"
 
     @classmethod
     def from_json(cls, file_path: pathlib.Path) -> Motor:

@@ -49,7 +49,9 @@ class NavigationServer(base_node.BaseNode):
         self._path = self._nav_planner.gen_path(
             self._cur_nav_point(), self._request.target
         )
-        self._controller = follow_path_controller.FollowPathController(self._path)
+        self._controller = follow_path_controller.FollowPathController(
+            self._path, session.get_robot_config()
+        )
         try:
             await self._run_control_loop()
         finally:
@@ -86,7 +88,7 @@ class NavigationServer(base_node.BaseNode):
 
     def _check_and_replan(self) -> None:
         """Verifies if a replan is necessary and replans."""
-        ...
+        pass
 
     def _update_controller(self) -> None:
         target = ...
