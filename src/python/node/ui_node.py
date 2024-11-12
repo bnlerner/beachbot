@@ -7,6 +7,7 @@ from flask import Flask, Response, jsonify, render_template, request
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import log
 from ipc import core, messages, pubsub, registry, session
 from models import constants, motor_velocity_model
 
@@ -81,11 +82,13 @@ class UINode:
         linear_velocity = constants.MAX_LINEAR_SPEED * y
         # Negative since positive spin is to the left.
         angular_velocity = constants.MAX_ANGULAR_SPEED * -x
+        log.data(linear_velocity=linear_velocity, angular_velocity=angular_velocity)
         self._controller.update(linear_velocity, angular_velocity)
 
     def _publish_motor_cmd_msgs(self) -> None:
         for motor in self._motor_configs:
             velocity = 0.0 if self._stop_robot else self._controller.velocity(motor)
+            log.data(motor=motor, velocity=velocity)
             msg = messages.MotorCommandMessage(motor=motor, velocity=velocity)
             channel = registry.motor_channel(motor)
             self._publishers[channel].publish(msg)

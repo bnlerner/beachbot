@@ -27,6 +27,18 @@ class Channels(SimpleNamespace):
     REAR_RIGHT_MOTOR_CMD = core.ChannelSpec[messages.MotorCommandMessage](
         channel="rear_right_motor_command"
     )
+    FRONT_LEFT_MOTOR_VELOCITY = core.ChannelSpec[messages.MotorVelocityMessage](
+        channel="front_left_motor_velocity"
+    )
+    FRONT_RIGHT_MOTOR_VELOCITY = core.ChannelSpec[messages.MotorVelocityMessage](
+        channel="front_right_motor_velocity"
+    )
+    REAR_LEFT_MOTOR_VELOCITY = core.ChannelSpec[messages.MotorVelocityMessage](
+        channel="rear_left_motor_velocity"
+    )
+    REAR_RIGHT_MOTOR_VELOCITY = core.ChannelSpec[messages.MotorVelocityMessage](
+        channel="rear_right_motor_velocity"
+    )
 
 
 class Requests(SimpleNamespace):

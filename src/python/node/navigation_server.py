@@ -2,10 +2,12 @@ import asyncio
 import os
 import sys
 import time
-from typing import Optional, Tuple
+from typing import DefaultDict, Optional, Tuple
 
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import collections
 
 from config import robot_config
 from controls import follow_path_controller
@@ -29,11 +31,18 @@ class NavigationServer(base_node.BaseNode):
         self._cur_heading: float
         self._controller: follow_path_controller.FollowPathController
         self._motors = session.get_robot_motors()
+        self._motor_velocities: DefaultDict[
+            robot_config.DrivetrainLocation, float
+        ] = collections.defaultdict(lambda: 0.0)
 
         self.add_subscribers(
             {
                 registry.Channels.BODY_GPS: self._update_gps_state,
                 registry.Channels.BODY_DYNAMICS: self._update_body_dyn_state,
+                registry.Channels.FRONT_LEFT_MOTOR_VELOCITY: self._update_motor_velocity,
+                registry.Channels.FRONT_RIGHT_MOTOR_VELOCITY: self._update_motor_velocity,
+                registry.Channels.REAR_LEFT_MOTOR_VELOCITY: self._update_motor_velocity,
+                registry.Channels.REAR_RIGHT_MOTOR_VELOCITY: self._update_motor_velocity,
             }
         )
         self.add_publishers(
@@ -63,8 +72,10 @@ class NavigationServer(base_node.BaseNode):
         )
 
     def _update_body_dyn_state(self, msg: messages.VehicleDynamicsMessage) -> None:
-        self._cur_vel = ...
         self._cur_heading = msg.heading
+
+    def _update_motor_velocity(self, msg: messages.MotorVelocityMessage) -> None:
+        self._motor_velocities[msg.motor.location] = msg.estimated_velocity
 
     async def _run_control_loop(self) -> None:
         total_time = 1.0 / _CONTROL_RATE
@@ -91,17 +102,43 @@ class NavigationServer(base_node.BaseNode):
         pass
 
     def _update_controller(self) -> None:
-        target = ...
+        target = self._target_twist()
         measured = self._cur_twist()
-        self._controller.update()
+        self._controller.update(target, measured)
 
     def _cur_nav_point(self) -> primitives.NavigationPoint:
         return primitives.NavigationPoint(
-            point=self._cur_gps_point, yaw=self._cur_heading
+            point=self._cur_gps_point, yaw=self._cur_heading, driving_direction=1
         )
 
+    def _target_twist(self) -> Tuple[float, float]:
+        return 1.0, 0.0
+
     def _cur_twist(self) -> Tuple[float, float]:
-        ...
+        """The twist in the robots body frame expressed as two floats of a linear and
+        angular velocity.
+        """
+        # TODO: Break this out into a helper file with unit tests.
+        front_left_vel = self._motor_velocities[
+            robot_config.DrivetrainLocation.FRONT_LEFT
+        ]
+        front_right_vel = self._motor_velocities[
+            robot_config.DrivetrainLocation.FRONT_RIGHT
+        ]
+        rear_left_vel = self._motor_velocities[
+            robot_config.DrivetrainLocation.REAR_LEFT
+        ]
+        rear_right_vel = self._motor_velocities[
+            robot_config.DrivetrainLocation.REAR_RIGHT
+        ]
+
+        left_vel = (front_left_vel + rear_left_vel) / 2
+        right_vel = (front_right_vel + rear_right_vel) / 2
+
+        linear_velocity = (left_vel - right_vel) / 2
+        angular_velocity = (right_vel - left_vel) / 2
+
+        return linear_velocity, angular_velocity
 
 
 if __name__ == "__main__":

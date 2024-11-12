@@ -1,7 +1,9 @@
+import asyncio
 import collections
 import math
 import os
 import sys
+import time
 from typing import DefaultDict
 
 from odrive import enums as odrive_enums  # type: ignore[import-untyped]
@@ -9,6 +11,8 @@ from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import log
+from config import robot_config
 from drivers.can import connection, enums
 from drivers.can import messages as can_messages
 from ipc import messages as ipc_messages
@@ -16,9 +20,9 @@ from ipc import registry, session
 
 from node import base_node
 
-_CLOSED_LOOP_STATE_INT = (
-    closed_loop_state
-) = odrive_enums.AxisState.CLOSED_LOOP_CONTROL.value
+_CLOSED_LOOP_STATE = odrive_enums.AxisState.CLOSED_LOOP_CONTROL
+_NO_ERROR = odrive_enums.ODriveError.NONE
+_VEL_PUB_RATE = 50  # Roughly publish at 50 hz or 20 ms
 
 
 class MotorControlNode(base_node.BaseNode):
@@ -31,16 +35,19 @@ class MotorControlNode(base_node.BaseNode):
         )
         self._motor_configs = session.get_robot_motors()
 
-        self._motor_axis_state: DefaultDict[int, int] = collections.defaultdict(
-            lambda: -1
-        )
+        self._motor_axis_state: DefaultDict[
+            int, odrive_enums.AxisState
+        ] = collections.defaultdict(lambda: odrive_enums.AxisState.UNDEFINED)
+        self._motor_axis_error: DefaultDict[
+            int, odrive_enums.ODriveError
+        ] = collections.defaultdict(lambda: odrive_enums.ODriveError.NONE)
         self._motor_velocity: DefaultDict[int, float] = collections.defaultdict(
             lambda: math.nan
         )
 
         self._can_bus.register_callbacks(
             (can_messages.EncoderEstimatesMessage, self._set_motor_velocity),
-            (can_messages.HeartbeatMessage, self._set_axis_state_from_heartbeat),
+            (can_messages.HeartbeatMessage, self._update_from_heartbeat),
         )
         self.add_subscribers(
             {
@@ -50,7 +57,13 @@ class MotorControlNode(base_node.BaseNode):
                 registry.Channels.REAR_RIGHT_MOTOR_CMD: self._send_motor_cmd,
             }
         )
-        self.add_tasks(self._set_closed_loop_axis_state, self._can_bus.listen)
+        self.add_publishers(
+            registry.Channels.FRONT_LEFT_MOTOR_VELOCITY,
+            registry.Channels.FRONT_RIGHT_MOTOR_VELOCITY,
+            registry.Channels.REAR_LEFT_MOTOR_VELOCITY,
+            registry.Channels.REAR_RIGHT_MOTOR_VELOCITY,
+        )
+        self.add_tasks(self._initialize_motors, self._can_bus.listen)
 
     async def shutdown_hook(self) -> None:
         # Sends a zero velocity to stop the motors.
@@ -60,11 +73,32 @@ class MotorControlNode(base_node.BaseNode):
             await self._set_axis_state(motor.node_id, odrive_enums.AxisState.IDLE)
         self._can_bus.shutdown()
 
-    async def _set_closed_loop_axis_state(self) -> None:
+    async def _initialize_motors(self) -> None:
         for motor in self._motor_configs:
+            # Clears errors for good measure in case there is a latent error in the
+            # motor.
+            await self._clear_errors(motor.node_id)
+            # Closed loop control set to allow velocity control.
             await self._set_axis_state(
                 motor.node_id, odrive_enums.AxisState.CLOSED_LOOP_CONTROL
             )
+
+    async def _publish_velocity(self) -> None:
+        total_time = 1.0 / _VEL_PUB_RATE
+        while True:
+            start = time.perf_counter()
+            for motor in self._motor_configs:
+                channel = registry.motor_channel(motor)
+                estimated_velocity = self._motor_velocity[motor.node_id]
+                msg = ipc_messages.MotorVelocityMessage(
+                    motor=motor, estimated_velocity=estimated_velocity
+                )
+                self.publish(channel, msg)
+
+            exec_time = time.perf_counter() - start
+            sleep_time = total_time - exec_time
+
+            await asyncio.sleep(sleep_time)
 
     async def _set_axis_state(
         self, node_id: int, axis_state: odrive_enums.AxisState
@@ -73,6 +107,7 @@ class MotorControlNode(base_node.BaseNode):
         await self._can_bus.send(axis_msg)
 
     async def _send_motor_cmd(self, msg: ipc_messages.MotorCommandMessage) -> None:
+        self._raise_if_axis_error(msg.motor)
         # Return early and wait until the motor enters a closed loop axis state prior to
         # sending any commands to it.
         if not self._ready_to_move(msg.motor.node_id):
@@ -83,10 +118,9 @@ class MotorControlNode(base_node.BaseNode):
         )
         await self._can_bus.send(vel_msg)
 
-    async def _set_axis_state_from_heartbeat(
-        self, msg: can_messages.HeartbeatMessage
-    ) -> None:
+    async def _update_from_heartbeat(self, msg: can_messages.HeartbeatMessage) -> None:
         self._motor_axis_state[msg.node_id] = msg.axis_state
+        self._motor_axis_error[msg.node_id] = msg.axis_error
 
     async def _set_motor_velocity(
         self, msg: can_messages.EncoderEstimatesMessage
@@ -94,7 +128,17 @@ class MotorControlNode(base_node.BaseNode):
         self._motor_velocity[msg.node_id] = msg.vel_estimate
 
     def _ready_to_move(self, node_id: int) -> bool:
-        return self._motor_axis_state[node_id] == _CLOSED_LOOP_STATE_INT
+        return self._motor_axis_state[node_id] == _CLOSED_LOOP_STATE
+
+    async def _clear_errors(self, node_id: int) -> None:
+        msg = can_messages.ClearErrorsCommand(node_id)
+        await self._can_bus.send(msg)
+
+    def _raise_if_axis_error(self, motor: robot_config.Motor) -> None:
+        if self._motor_axis_error[motor.node_id] != _NO_ERROR:
+            error = self._motor_axis_error[motor.node_id]
+            log.error(f"Axis error: {error.name} on motor: {motor.location}")
+            raise SystemError(f"Axis error: {error.name} on motor: {motor.location}")
 
 
 if __name__ == "__main__":

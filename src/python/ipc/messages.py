@@ -33,6 +33,11 @@ class MotorCommandMessage(core.BaseMessage):
     velocity: float
 
 
+class MotorVelocityMessage(core.BaseMessage):
+    motor: robot_config.Motor
+    estimated_velocity: float
+
+
 class NavigateRequest(core.Request):
     """A location to navigate to."""
 
