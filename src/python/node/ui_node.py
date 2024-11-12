@@ -68,15 +68,6 @@ class UINode:
             self._publish_motor_cmd_msgs()
             return jsonify({"status": "success", "message": "Data received"})
 
-        # Add a route specifically for shutting down the server
-        @self._app.route("/shutdown", methods=["GET"])
-        def shutdown() -> str:
-            func = request.environ.get("werkzeug.server.shutdown")
-            if func is None:
-                raise RuntimeError("Not running with the Werkzeug Server")
-            func()
-            return "Server shutting down..."
-
     def _update_controller(self, data: Dict[str, str]) -> None:
         # Positive X is turn right
         x: float = eval(x_str) if (x_str := data.get("x")) else 0.0
