@@ -1,0 +1,21 @@
+[Unit]
+Description=Beachbot robot startup
+After=network-online.target network.target rsyslog.service
+After=tailscaled.service
+
+StartLimitBurst=5
+StartLimitIntervalSec=0
+
+[Service]
+Environment=PROJECT_DIR=/home/brianlerner/beachbot
+Environment=HOME_DIR=/home/brianlerner/
+WorkingDirectory=/home/brianlerner/beachbot
+ExecStart=/usr/bin/python3 main.py ui
+StandardOutput=journal
+KillSignal=SIGINT
+Restart=on-failure
+RestartSec=5
+User=brianlerner
+
+[Install]
+WantedBy=multi-user.target

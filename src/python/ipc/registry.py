@@ -41,6 +41,7 @@ class NodeIDs(SimpleNamespace):
     NAVIGATION = core.NodeID(name="navigation")
     RC = core.NodeID(name="rc")
     UBLOX_DATA = core.NodeID(name="ublox_data")
+    UI = core.NodeID(name="ui_node")
 
 
 def motor_channel(motor: primitives.Motor) -> core.ChannelSpec:
