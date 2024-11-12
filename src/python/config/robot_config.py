@@ -33,7 +33,7 @@ class DrivetrainLocation(str, enum.Enum):
 
 
 class Motor(pydantic.BaseModel):
-    """Representative of the motor, useful for CAN communication and indentifying
+    """Representative of the motor, useful for CAN communication and identifying
     the motor location.
     """
 
