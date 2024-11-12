@@ -33,3 +33,4 @@ class NodeIDs(SimpleNamespace):
     MOTOR_CONTROL = core.NodeID(name="motor_control")
     RC = core.NodeID(name="rc")
     UBLOX_DATA = core.NodeID(name="ublox_data")
+    UI = core.NodeID(name="ui_node")
