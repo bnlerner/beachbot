@@ -42,6 +42,10 @@ class NodeConfig(pydantic.BaseModel):
     def ublox_data_node(cls) -> NodeConfig:
         return NodeConfig(file_name="ublox_data_node.py")
 
+    @classmethod
+    def ui_node(cls) -> NodeConfig:
+        return NodeConfig(file_name="ui_node.py")
+
 
 class Orchestrator:
     """Allows running multiple nodes, each in a different process via a profile.
@@ -145,7 +149,11 @@ class Orchestrator:
 
 def _gen_profile(profile: Literal["hw", "rc"]) -> List[NodeConfig]:
     if profile == "hw":
-        return [NodeConfig.ublox_data_node(), NodeConfig.motor_control_node()]
+        return [
+            NodeConfig.ublox_data_node(),
+            NodeConfig.motor_control_node(),
+            NodeConfig.rc_node(),
+        ]
     elif profile == "rc":
         return [
             NodeConfig.ublox_data_node(),
