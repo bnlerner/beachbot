@@ -57,7 +57,7 @@ class Orchestrator:
     compose.
     """
 
-    def __init__(self, mode: Literal["hw", "rc"]):
+    def __init__(self, mode: Literal["ui", "rc"]):
         self._profile = _gen_profile(mode)
         # List to keep track of child processes
         self._processes: List[subprocess.Popen] = []
@@ -147,12 +147,12 @@ class Orchestrator:
             signal.signal(signal_, self._rcv_signal)
 
 
-def _gen_profile(profile: Literal["hw", "rc"]) -> List[NodeConfig]:
-    if profile == "hw":
+def _gen_profile(profile: Literal["ui", "rc"]) -> List[NodeConfig]:
+    if profile == "ui":
         return [
             NodeConfig.ublox_data_node(),
             NodeConfig.motor_control_node(),
-            NodeConfig.rc_node(),
+            NodeConfig.ui_node(),
         ]
     elif profile == "rc":
         return [

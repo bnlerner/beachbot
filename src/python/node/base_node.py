@@ -91,6 +91,7 @@ class BaseNode:
             if asyncio.iscoroutinefunction(functools._unwrap_partial(function)):  # type: ignore[attr-defined]
                 coroutine = function()
             else:
+                log.info(f"Called to thread {function=}")
                 coroutine = asyncio.to_thread(function)
 
             self._background_tasks.append(asyncio.create_task(coroutine))
