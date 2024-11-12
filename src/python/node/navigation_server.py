@@ -7,11 +7,10 @@ from typing import Optional, Tuple
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from config import robot_config
 from controls import follow_path_controller
-from drivers import primitives as hw_primitives
 from ipc import messages, registry, session
-from planning import navigation_path_planner
-from planning import primitives as pl_primitives
+from planning import navigation_path_planner, primitives
 
 from node import base_node
 
@@ -26,7 +25,7 @@ class NavigationServer(base_node.BaseNode):
         # No obstacles added for now.
         self._nav_planner = navigation_path_planner.NavigationPathPlanner([])
         self._request: Optional[messages.NavigateRequest] = None
-        self._cur_gps_point: pl_primitives.GPSPoint
+        self._cur_gps_point: primitives.GPSPoint
         self._cur_heading: float
         self._controller: follow_path_controller.FollowPathController
         self._motors = session.get_robot_motors()
@@ -57,7 +56,7 @@ class NavigationServer(base_node.BaseNode):
             self._request = None
 
     def _update_gps_state(self, msg: messages.GPSMessage) -> None:
-        self._cur_gps_point = pl_primitives.GPSPoint(
+        self._cur_gps_point = primitives.GPSPoint(
             latitude=msg.latitude, longitude=msg.longitude
         )
 
@@ -79,7 +78,7 @@ class NavigationServer(base_node.BaseNode):
             sleep_time = total_time - write_time
             await asyncio.sleep(sleep_time)
 
-    def _publish_motor_cmd_msg(self, motor: hw_primitives.Motor) -> None:
+    def _publish_motor_cmd_msg(self, motor: robot_config.Motor) -> None:
         velocity = self._controller.velocity(motor)
         msg = messages.MotorCommandMessage(motor=motor, velocity=velocity)
         channel = registry.motor_channel(motor)
@@ -94,8 +93,8 @@ class NavigationServer(base_node.BaseNode):
         measured = self._cur_twist()
         self._controller.update()
 
-    def _cur_nav_point(self) -> pl_primitives.NavigationPoint:
-        return pl_primitives.NavigationPoint(
+    def _cur_nav_point(self) -> primitives.NavigationPoint:
+        return primitives.NavigationPoint(
             point=self._cur_gps_point, yaw=self._cur_heading
         )
 

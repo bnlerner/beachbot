@@ -18,12 +18,12 @@ from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from drivers import primitives
+from config import robot_config
 from drivers.can import connection, enums, messages
 from ipc import session
 
 
-async def _control_motor(bus: connection.CANSimple, motor: primitives.Motor) -> None:
+async def _control_motor(bus: connection.CANSimple, motor: robot_config.Motor) -> None:
     """Node ID must match `<odrv>.axis0.config.can.node_id`. The default is 0."""
     # Put axis into closed loop control state
     await _set_control_loop_state(bus, motor.node_id)
@@ -38,7 +38,7 @@ async def _set_control_loop_state(bus: connection.CANSimple, node_id: int) -> No
 
 
 async def _set_velocity(
-    bus: connection.CANSimple, motor: primitives.Motor, velocity: float
+    bus: connection.CANSimple, motor: robot_config.Motor, velocity: float
 ) -> None:
     """Sets velocity in turns/s"""
     signed_velocity = motor.direction * velocity

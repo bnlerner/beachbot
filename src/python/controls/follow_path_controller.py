@@ -1,14 +1,13 @@
 from typing import Tuple
 
 from config import robot_config
-from drivers import primitives as hw_primitives
-from planning import primitives as pl_primitives
+from planning import primitives
 
 
 class FollowPathController:
     """Follows a nav path."""
 
-    def __init__(self, path: pl_primitives.NavigationPath) -> None:
+    def __init__(self, path: primitives.NavigationPath) -> None:
         self._path = path
 
     def update(
@@ -20,7 +19,7 @@ class FollowPathController:
         vel_error = target[0] - measured[0]
         spin_error = target[1] - measured[1]
 
-    def velocity(self, motor: hw_primitives.Motor) -> float:
+    def velocity(self, motor: robot_config.Motor) -> float:
         linear_vel = self._linear_velocity()
         angular_vel = self._angular_velocity()
 

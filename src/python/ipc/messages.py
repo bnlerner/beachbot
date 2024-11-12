@@ -1,5 +1,5 @@
-from drivers import primitives as hw_primitives
-from planning import primitives as pl_primitives
+from config import robot_config
+from planning import primitives
 
 from ipc import core
 
@@ -29,11 +29,11 @@ class VehicleDynamicsMessage(core.BaseMessage):
 class MotorCommandMessage(core.BaseMessage):
     """The target motor commands to use for control of each motor."""
 
-    motor: hw_primitives.Motor
+    motor: robot_config.Motor
     velocity: float
 
 
 class NavigateRequest(core.Request):
     """A location to navigate to."""
 
-    target: pl_primitives.NavigationPoint
+    target: primitives.NavigationPoint

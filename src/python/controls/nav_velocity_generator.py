@@ -1,5 +1,4 @@
 from config import robot_config
-from drivers import primitives
 
 
 class NavVelocityGenerator:
@@ -13,7 +12,7 @@ class NavVelocityGenerator:
         self._linear_velocity = linear_velocity
         self._angular_velocity = angular_velocity
 
-    def velocity(self, motor: primitives.Motor) -> float:
+    def velocity(self, motor: robot_config.Motor) -> float:
         if motor.location in (
             robot_config.DrivetrainLocation.FRONT_LEFT,
             robot_config.DrivetrainLocation.REAR_LEFT,

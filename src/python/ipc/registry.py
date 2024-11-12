@@ -4,7 +4,6 @@ publisher to a subscriber.
 from types import SimpleNamespace
 
 from config import robot_config
-from drivers import primitives
 
 from ipc import core, messages
 
@@ -44,7 +43,7 @@ class NodeIDs(SimpleNamespace):
     UI = core.NodeID(name="ui_node")
 
 
-def motor_channel(motor: primitives.Motor) -> core.ChannelSpec:
+def motor_channel(motor: robot_config.Motor) -> core.ChannelSpec:
     """Motor channel from the config."""
     if motor.location == robot_config.DrivetrainLocation.FRONT_LEFT:
         return Channels.FRONT_LEFT_MOTOR_CMD
