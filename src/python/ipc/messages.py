@@ -33,6 +33,12 @@ class MotorCommandMessage(core.BaseMessage):
     velocity: float
 
 
+class StopMotorsMessage(core.BaseMessage):
+    """Stops all motors via the software E-stop."""
+
+    pass
+
+
 class MotorVelocityMessage(core.BaseMessage):
     motor: robot_config.Motor
     estimated_velocity: float

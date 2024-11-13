@@ -48,6 +48,45 @@
         .tab-content.active {
             display: block;
         }
+        /* Action buton styles */
+        .action-button {
+            display: block;
+            margin: 40px auto;
+            padding: 20px 20px;
+            font-weight: bold;
+            text-align: center;
+            font-size: 18px;
+            color: blue;
+            background-color: lightblue;
+            border: 3px solid darkblue;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            width: 50%; /* Adjust width as needed */
+            max-width: 150px; /* Maximum width for the button */
+        }
+
+        /* E-Stop button styles */
+        .e-stop-button {
+            display: block;
+            margin: 40px auto;
+            padding: 20px 20px;
+            font-size: 18px;
+            font-weight: bold;
+            color: white;
+            background-color: #d9534f; /* Red color */
+            border: 3px solid #c9302c; /* Darker red border */
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            width: 50%; /* Adjust width as needed */
+            max-width: 150px; /* Maximum width for the button */
+        }
+
+        .e-stop-button:hover {
+            background-color: #c9302c; /* Darker red on hover */
+        }
+
     </style>
 </head>
 <body>
@@ -111,9 +150,12 @@
     </div>
     <div id="autonomous_tab" class="tab-content">
         <h3>Navigate autonomously to your location</h3>
-        <button onclick="sendNavigateRequest()">Navigate to me</button>
-        <button onclick="cancelNavigateRequest()">Cancel</button>
-        <div id="gps_coordinates">Status: IDLE</div>
+        <button class="action-button" onclick="sendNavigateRequest()">Navigate to me</button>
+        <button class="action-button" onclick="cancelNavigateRequest()">Cancel</button>
+        <div id="gps_coordinates">Status: Waiting Commands</div>
+        <!-- E-Stop Button -->
+        <button class="e-stop-button" onclick="sendEStop()">EMERGENCY STOP</button>
+
         <script>
             const GPSCoordinatesDisplay = document.getElementById('gps_coordinates');
             function sendNavigateRequest() {
@@ -124,7 +166,7 @@
                             const longitude = position.coords.longitude;
 
                             // Update the coordinates display
-                            GPSCoordinatesDisplay.textContent = `Status: Navigating to Latitude: ${latitude}, Longitude: ${longitude}`;
+                            GPSCoordinatesDisplay.textContent = `Status: Navigating to Latitude: ${latitude.toFixed(4)}, Longitude: ${longitude.toFixed(4)}`;
 
                             // Send a navigate request with GPS data to the Flask server
                             fetch('/navigate', {
@@ -140,7 +182,8 @@
                             .then(response => response.json())
                             .then(data => {
                                 console.log('Server response:', data);
-                                GPSCoordinatesDisplay.textContent = `Status: Finished navigating to Latitude: ${latitude}, Longitude: ${longitude}`;
+                                const message = data.message || '';
+                                GPSCoordinatesDisplay.textContent = `Status: ${data.status}, message: ${message}`;
                             })
                             .catch(error => {
                                 console.error('Error sending navigate request.');
@@ -166,7 +209,21 @@
                     console.error('Error sending cancel request:', error);
                 });
                 // Update the coordinates display
-                GPSCoordinatesDisplay.textContent = `Status: IDLE`;
+                GPSCoordinatesDisplay.textContent = `Status: Cancelling`;
+            }
+            function sendEStop() {
+                fetch('/e-stop', {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    GPSCoordinatesDisplay.textContent = `Status: ${data.status}`;
+                    alert('Emergency Stop activated');
+                    console.log('E-Stop response:', data);
+                })
+                .catch(error => {
+                    console.error('Error activating E-Stop:', error);
+                });
             }
         </script>
     </div>

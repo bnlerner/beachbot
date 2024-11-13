@@ -65,7 +65,7 @@ class RCRobotNode(base_node.BaseNode):
         for motor in self._motor_configs:
             velocity = self._rc_velocity_generator.velocity(motor)
             msg = messages.MotorCommandMessage(motor=motor, velocity=velocity)
-            channel = registry.motor_channel(motor)
+            channel = registry.motor_command_channel(motor)
             self.publish(channel, msg)
 
     async def shutdown_hook(self) -> None:

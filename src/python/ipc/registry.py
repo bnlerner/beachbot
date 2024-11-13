@@ -39,6 +39,7 @@ class Channels(SimpleNamespace):
     REAR_RIGHT_MOTOR_VELOCITY = core.ChannelSpec[messages.MotorVelocityMessage](
         channel="rear_right_motor_velocity"
     )
+    STOP_MOTORS = core.ChannelSpec[messages.StopMotorsMessage](channel="stop_motors")
 
 
 class Requests(SimpleNamespace):
@@ -55,8 +56,8 @@ class NodeIDs(SimpleNamespace):
     UI = core.NodeID(name="ui_node")
 
 
-def motor_channel(motor: robot_config.Motor) -> core.ChannelSpec:
-    """Motor channel from the config."""
+def motor_command_channel(motor: robot_config.Motor) -> core.ChannelSpec:
+    """Motor command channel from the config."""
     if motor.location == robot_config.DrivetrainLocation.FRONT_LEFT:
         return Channels.FRONT_LEFT_MOTOR_CMD
     elif motor.location == robot_config.DrivetrainLocation.FRONT_RIGHT:
@@ -65,5 +66,19 @@ def motor_channel(motor: robot_config.Motor) -> core.ChannelSpec:
         return Channels.REAR_LEFT_MOTOR_CMD
     elif motor.location == robot_config.DrivetrainLocation.REAR_RIGHT:
         return Channels.REAR_RIGHT_MOTOR_CMD
+    else:
+        raise ValueError("unknown channel")
+
+
+def motor_velocity_channel(motor: robot_config.Motor) -> core.ChannelSpec:
+    """Motor velocity channel from the config."""
+    if motor.location == robot_config.DrivetrainLocation.FRONT_LEFT:
+        return Channels.FRONT_LEFT_MOTOR_VELOCITY
+    elif motor.location == robot_config.DrivetrainLocation.FRONT_RIGHT:
+        return Channels.FRONT_RIGHT_MOTOR_VELOCITY
+    elif motor.location == robot_config.DrivetrainLocation.REAR_LEFT:
+        return Channels.REAR_LEFT_MOTOR_VELOCITY
+    elif motor.location == robot_config.DrivetrainLocation.REAR_RIGHT:
+        return Channels.REAR_RIGHT_MOTOR_VELOCITY
     else:
         raise ValueError("unknown channel")

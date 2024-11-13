@@ -55,6 +55,7 @@ class MotorControlNode(base_node.BaseNode):
                 registry.Channels.FRONT_RIGHT_MOTOR_CMD: self._send_motor_cmd,
                 registry.Channels.REAR_LEFT_MOTOR_CMD: self._send_motor_cmd,
                 registry.Channels.REAR_RIGHT_MOTOR_CMD: self._send_motor_cmd,
+                registry.Channels.STOP_MOTORS: self._activate_e_stop,
             }
         )
         self.add_publishers(
@@ -63,7 +64,9 @@ class MotorControlNode(base_node.BaseNode):
             registry.Channels.REAR_LEFT_MOTOR_VELOCITY,
             registry.Channels.REAR_RIGHT_MOTOR_VELOCITY,
         )
-        self.add_tasks(self._initialize_motors, self._can_bus.listen)
+        self.add_tasks(
+            self._initialize_motors, self._can_bus.listen, self._publish_velocity
+        )
 
     async def shutdown_hook(self) -> None:
         # Sends a zero velocity to stop the motors.
@@ -88,7 +91,7 @@ class MotorControlNode(base_node.BaseNode):
         while True:
             start = time.perf_counter()
             for motor in self._motor_configs:
-                channel = registry.motor_channel(motor)
+                channel = registry.motor_velocity_channel(motor)
                 estimated_velocity = self._motor_velocity[motor.node_id]
                 msg = ipc_messages.MotorVelocityMessage(
                     motor=motor, estimated_velocity=estimated_velocity
@@ -117,6 +120,11 @@ class MotorControlNode(base_node.BaseNode):
             msg.motor.node_id, velocity=msg.velocity, torque=0.0
         )
         await self._can_bus.send(vel_msg)
+
+    async def _activate_e_stop(self, msg: ipc_messages.StopMotorsMessage) -> None:
+        for motor in self._motor_configs:
+            e_stop_msg = can_messages.EStop(motor.node_id)
+            await self._can_bus.send(e_stop_msg)
 
     async def _update_from_heartbeat(self, msg: can_messages.HeartbeatMessage) -> None:
         self._motor_axis_state[msg.node_id] = msg.axis_state

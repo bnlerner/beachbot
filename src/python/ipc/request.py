@@ -31,7 +31,7 @@ class _RequestExecutable:
         except asyncio.CancelledError:
             cancelled = True
         except BaseException as err:
-            log.error("Error while executing Request: \n" + err.__str__())
+            log.error("Error while executing Request: " + err.__str__())
 
         self._request_task = None
         return core.RequestResponse(
@@ -120,7 +120,7 @@ class RequestClient:
 
     async def send(self, msg: core.Request) -> core.RequestResponse:
         log.info(
-            f"Sending request from {self._node_id=} at Channel: {self._request_spec.base_channel}"
+            f"Sending request from Node: {self._node_id.name} to Channel: {self._request_spec.base_channel}"
         )
         self._request_publisher.publish(msg)
 

@@ -72,6 +72,9 @@ class UINode:
         self._publishers[registry.Channels.REAR_RIGHT_MOTOR_CMD] = pubsub.Publisher(
             self._node_id, registry.Channels.REAR_RIGHT_MOTOR_CMD
         )
+        self._publishers[registry.Channels.STOP_MOTORS] = pubsub.Publisher(
+            self._node_id, registry.Channels.STOP_MOTORS
+        )
 
     def _add_request_clients(self, *request_specs: core.RequestSpec) -> None:
         for request_spec in request_specs:
@@ -123,6 +126,12 @@ class UINode:
             else:
                 raise ValueError(f"Unexpected request {request=}")
 
+        @self._app.route("/e-stop", methods=["POST"])
+        def e_stop() -> Tuple[Response, int]:
+            self._publish_e_stop()
+            log.info("Emergency Stop triggered!")
+            return jsonify({"status": "E-Stop activated"}), 201
+
     def _update_rc_controller(self, data: Dict[str, str]) -> None:
         # Positive X is turn right
         x: float = eval(x_str) if (x_str := data.get("x")) else 0.0
@@ -162,8 +171,12 @@ class UINode:
         for motor in self._motor_configs:
             velocity = 0.0 if self._stop_robot else self._rc_controller.velocity(motor)
             msg = messages.MotorCommandMessage(motor=motor, velocity=velocity)
-            channel = registry.motor_channel(motor)
+            channel = registry.motor_command_channel(motor)
             self._publishers[channel].publish(msg)
+
+    def _publish_e_stop(self) -> None:
+        msg = messages.StopMotorsMessage()
+        self._publishers[registry.Channels.STOP_MOTORS].publish(msg)
 
     async def _send_request(
         self, spec: core.RequestSpec, request_msg: core.Request

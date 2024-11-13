@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import collections
 
+import log
 from config import robot_config
 from controls import follow_path_controller
 from ipc import messages, registry, session
@@ -99,7 +100,7 @@ class NavigationServer(base_node.BaseNode):
     def _publish_motor_cmd_msg(self, motor: robot_config.Motor) -> None:
         velocity = self._controller.velocity(motor)
         msg = messages.MotorCommandMessage(motor=motor, velocity=velocity)
-        channel = registry.motor_channel(motor)
+        channel = registry.motor_command_channel(motor)
         self.publish(channel, msg)
 
     def _check_and_replan(self) -> None:
@@ -135,15 +136,16 @@ class NavigationServer(base_node.BaseNode):
         left_vel = (front_left_vel + rear_left_vel) / 2
         right_vel = (front_right_vel + rear_right_vel) / 2
 
-        linear_velocity = (left_vel - right_vel) / 2
-        angular_velocity = (right_vel - left_vel) / 2
+        linear_velocity = (right_vel - left_vel) / 2
+        angular_velocity = (right_vel + left_vel) / 2
 
+        log.data(linear_velocity=linear_velocity, angular_velocity=angular_velocity)
         return linear_velocity, angular_velocity
 
     def _stop_motors(self) -> None:
         for motor in self._motors:
             msg = messages.MotorCommandMessage(motor=motor, velocity=0.0)
-            channel = registry.motor_channel(motor)
+            channel = registry.motor_command_channel(motor)
             self.publish(channel, msg)
 
     def _finished(self) -> bool:
