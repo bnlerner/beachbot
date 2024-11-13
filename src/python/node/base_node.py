@@ -22,6 +22,7 @@ class BaseNode:
         self._subscriber_callbacks: Dict[core.ChannelSpec, Callable] = {}
         self._subscribers: List[pubsub.Subscriber] = []
         self._publishers: Dict[core.ChannelSpec, pubsub.Publisher] = {}
+        self._request_clients: Dict[core.RequestSpec, request.RequestClient] = {}
         self._request_server: Optional[request.RequestServer] = None
         self._add_cleanup_signals()
 
@@ -45,6 +46,12 @@ class BaseNode:
         for channel in channels:
             self._publishers[channel] = pubsub.Publisher(self._node_id, channel)
 
+    def add_request_clients(self, *request_specs: core.RequestSpec) -> None:
+        for request_spec in request_specs:
+            self._request_clients[request_spec] = request.RequestClient(
+                self._node_id, request_spec
+            )
+
     def set_request_server(
         self, request_spec: core.RequestSpec, request_func: Callable
     ) -> None:
@@ -60,6 +67,17 @@ class BaseNode:
             )
 
         self._publishers[channel].publish(msg)
+
+    async def send_request(
+        self, spec: core.RequestSpec, request_msg: core.Request
+    ) -> core.RequestResponse:
+        if spec not in self._request_clients:
+            raise RuntimeError(
+                "Unrecognized Request spec, did you forget to add it? "
+                f"{spec.base_channel.upper()}"
+            )
+
+        return await self._request_clients[spec].send(request_msg)
 
     async def _async_run(self) -> None:
         self._node_task = asyncio.create_task(self._main())

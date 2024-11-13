@@ -35,7 +35,7 @@ class Publisher(Generic[BaseMessageT]):
         read by the subscriber.
         """
         if (cur_shm_id := _get_shm_id(self._shm)) is None:
-            log.info("Attempting to publish to a closed SHM file. Skipping")
+            log.error("Attempting to publish to a closed SHM file.")
             return None
 
         _raise_if_shm_id_changed(self._shm_id, cur_shm_id)

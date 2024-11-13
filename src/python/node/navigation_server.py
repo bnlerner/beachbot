@@ -56,7 +56,7 @@ class NavigationServer(base_node.BaseNode):
     async def _rcv_request(self, request: messages.NavigateRequest) -> None:
         self._request = request
         self._path = self._nav_planner.gen_path(
-            self._cur_nav_point(), self._request.target
+            self._cur_gps_point, self._cur_heading, self._request.target
         )
         self._controller = follow_path_controller.FollowPathController(
             self._path, session.get_robot_config()
@@ -105,11 +105,6 @@ class NavigationServer(base_node.BaseNode):
         target = self._target_twist()
         measured = self._cur_twist()
         self._controller.update(target, measured)
-
-    def _cur_nav_point(self) -> primitives.NavigationPoint:
-        return primitives.NavigationPoint(
-            point=self._cur_gps_point, yaw=self._cur_heading, driving_direction=1
-        )
 
     def _target_twist(self) -> Tuple[float, float]:
         return 1.0, 0.0

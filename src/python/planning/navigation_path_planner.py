@@ -20,10 +20,16 @@ class NavigationPathPlanner:
         self._obstacles = obstacles
 
     def gen_path(
-        self, start: primitives.NavigationPoint, end: primitives.NavigationPoint
+        self, start: primitives.GPSPoint, start_yaw: float, end: primitives.GPSPoint
     ) -> primitives.NavigationPath:
-        start_pose = start.to_rs_nav_plan_point()
-        end_pose = end.to_rs_nav_plan_point()
+        # Replace with way to calculate the state of the robot. Poss
+        end_yaw = start.angle_to(end)
+        start_pose = primitives.NavigationPoint(
+            point=start, yaw=start_yaw, driving_direction=1
+        ).to_rs_nav_plan_point()
+        end_pose = primitives.NavigationPoint(
+            point=end, yaw=end_yaw, driving_direction=1
+        ).to_rs_nav_plan_point()
 
         path = rsplan.path(start_pose, end_pose, _TURN_RADIUS, _RUNWAY_SIZE, _STEP_SIZE)
 

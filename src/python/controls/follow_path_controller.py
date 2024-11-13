@@ -30,7 +30,7 @@ class FollowPathController:
         return self._motor_model.velocity(motor)
 
     def _linear_velocity(self) -> float:
-        return 0.0
+        return 0.5
 
     def _angular_velocity(self) -> float:
         return 0.0

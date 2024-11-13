@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import List, Literal, Tuple
 
 import pydantic
@@ -38,6 +39,23 @@ class NavigationPoint(pydantic.BaseModel):
 class GPSPoint(pydantic.BaseModel):
     latitude: float
     longitude: float
+
+    def __add__(self, other: GPSPoint) -> GPSPoint:
+        return GPSPoint(
+            latitude=self.latitude + other.latitude,
+            longitude=self.longitude + other.longitude,
+        )
+
+    def __sub__(self, other: GPSPoint) -> GPSPoint:
+        return GPSPoint(
+            latitude=self.latitude - other.latitude,
+            longitude=self.longitude - other.longitude,
+        )
+
+    def angle_to(self, other: GPSPoint) -> float:
+        """The absolute angle in the global GPS frame between the two GPS points."""
+        translation = self - other
+        return math.degrees(math.atan2(translation.latitude, translation.longitude))
 
 
 class Obstacle(pydantic.BaseModel):

@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, user-scalable=no">
+    <title>Tabbed Interface</title>
     <style>
         #zone_joystick {
             width: 100vw;  /* 100% of viewport width */
@@ -16,58 +17,157 @@
             font-size: 1.5em;
             margin-top: 20px;
         }
+        /* Basic styling for the tabs */
+        .tab {
+            overflow: hidden;
+            background-color: #f1f1f1;
+        }
+        .tab button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            transition: 0.3s;
+            font-size: 17px;
+        }
+        .tab button:hover {
+            background-color: #ddd;
+        }
+        .tab button.active {
+            background-color: #ccc;
+        }
+        .tabcontent {
+            display: none;
+            padding: 20px;
+            border-top: none;
+        }
+        /* Show tab content when active */
+        .tabcontent.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
-    <h1>Control Beachbot via RC</h1>
-    <h3>Touch below to start to control the robot via a joystick.</h3>
-    <div id="zone_joystick" style="float:left;width:100%;margin:0;padding:0;"></div>
-    <div id="coordinates">X: 0, Y: 0</div> <!-- Display coordinates here -->
+    <h2>Tabbed Interface</h2>
+    <div class="tab">
+        <button class="tablinks" onclick="openTab(event, 'Tab1')">RC</button>
+        <button class="tablinks" onclick="openTab(event, 'Tab2')">Autonomous</button>
+    </div>
+    <div id="Tab1" class="tabcontent">
+        <h3>Navigate by remote control using a joystick below</h3>
+        <div id="zone_joystick" style="float:left;width:100%;margin:0;padding:0;"></div>
+        <!-- Display coordinates here -->
+        <div id="coordinates">Turn (positive is right): 0, Drive (positive is forward): 0</div>
 
-    <!-- Include NippleJS -->
-    <script src="{{ url_for('static', filename='js/nipplejs.js') }}"></script>
-    <script>
-        // Initialize the joystick using NippleJS
-        const joystickContainer = document.getElementById('zone_joystick');
-        const coordinatesDisplay = document.getElementById('coordinates');
+        <!-- Include NippleJS -->
+        <script src="{{ url_for('static', filename='js/nipplejs.js') }}"></script>
+        <script>
+            // Initialize the joystick using NippleJS
+            const joystickContainer = document.getElementById('zone_joystick');
+            const coordinatesDisplay = document.getElementById('coordinates');
 
-        const joystick = nipplejs.create({
-            zone: joystickContainer,
-            size: 200,
-            color: 'blue',
-        });
-        // Listen for joystick move events and send data to Flask server
-        joystick.on('move', (event, data) => {
-            if (data && data.vector) {
-                const x = data.vector.x.toFixed(2);
-                const y = data.vector.y.toFixed(2);
+            const joystick = nipplejs.create({
+                zone: joystickContainer,
+                size: 200,
+                color: 'blue',
+            });
+            // Listen for joystick move events and send data to Flask server
+            joystick.on('move', (event, data) => {
+                if (data && data.vector) {
+                    const x = data.vector.x.toFixed(2);
+                    const y = data.vector.y.toFixed(2);
 
-                // Update the coordinates display
-                coordinatesDisplay.textContent = `X: ${x}, Y: ${y}`;
+                    // Update the coordinates display
+                    coordinatesDisplay.textContent = `Turn (positive is right): ${x}, Drive (positive is forward): ${y}`;
 
-                // Send the joystick data to the server
+                    // Send the joystick data to the server
+                    fetch('/joystick_input', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ x: x, y: y, stop: false})
+                    }).then(response => response.json())
+                      .then(data => console.log(data));
+                }
+            });
+            // Send zeros on joystick release
+            joystick.on('end', () => {
                 fetch('/joystick_input', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ x: x, y: y, stop: false})
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ x: 0.0, y: 0.0, stop: true})
                 }).then(response => response.json())
-                  .then(data => console.log(data));
+                  .then(data => console.log("Joystick released:", data));
+
+                // Update the coordinates display
+                coordinatesDisplay.textContent = `Turn (positive is right): 0.0, Drive (positive is forward): 0.0`;
+
+            });
+        </script>
+    </div>
+    <div id="Tab2" class="tabcontent">
+        <h3>Navigate autonomously to your location</h3>
+        <button onclick="sendNavigateRequest()">Come to me</button>
+        <p id="gps_coordinates"></p>
+        <script>
+            function sendNavigateRequest() {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            const latitude = position.coords.latitude;
+                            const longitude = position.coords.longitude;
+
+                            // Send a navigate request with GPS data to the Flask server
+                            fetch('/navigate', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    latitude: latitude,
+                                    longitude: longitude,
+                                }),
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                console.log('Server response:', data);
+                            })
+                            .catch(error => {
+                                console.error('Error sending navigate request:', error);
+                            });
+                        },
+                        function(error) {
+                            console.error('Error getting GPS data:', error);
+                        }
+                    );
+                } else {
+                    alert("Geolocation is not supported by this browser.");
+                }
             }
-        });
-        // Send zeros on joystick release
-        joystick.on('end', () => {
-            fetch('/joystick_input', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ x: 0.0, y: 0.0, stop: true})
-            }).then(response => response.json())
-              .then(data => console.log("Joystick released:", data));
+        </script>
+    </div>
+    <script>
+        // Function to open a tab and close others
+        function openTab(event, tabName) {
+            // Hide all tab content
+            const tabcontent = document.querySelectorAll('.tabcontent');
+            tabcontent.forEach((content) => content.classList.remove('active'));
 
-            // Update the coordinates display
-            coordinatesDisplay.textContent = `X: 0.0, Y: 0.0`;
+            // Remove the "active" class from all tab buttons
+            const tablinks = document.querySelectorAll('.tablinks');
+            tablinks.forEach((tab) => tab.classList.remove('active'));
 
+            // Show the current tab and add "active" class to the button
+            document.getElementById(tabName).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+
+        // Open Tab 1 by default
+        document.addEventListener("DOMContentLoaded", function() {
+            document.querySelector('.tablinks').click();
         });
     </script>
 </body>

@@ -41,4 +41,4 @@ class MotorVelocityMessage(core.BaseMessage):
 class NavigateRequest(core.Request):
     """A location to navigate to."""
 
-    target: primitives.NavigationPoint
+    target: primitives.GPSPoint
