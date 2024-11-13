@@ -18,44 +18,45 @@
             margin-top: 20px;
         }
         /* Basic styling for the tabs */
-        .tab {
-            overflow: hidden;
+        .tab-container {
+            display: flex;
+            justify-content: center;
+            width: 100%;
             background-color: #f1f1f1;
+            border-bottom: 2px solid #ccc;
         }
-        .tab button {
-            background-color: inherit;
-            float: left;
+        .tab-button {
+            flex: 1; /* Take up equal space */
+            padding: 16px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 18px;
+            color: white;
+            background-color: #4CAF50;
             border: none;
             outline: none;
-            cursor: pointer;
-            padding: 14px 16px;
-            transition: 0.3s;
-            font-size: 17px;
         }
-        .tab button:hover {
-            background-color: #ddd;
+        .tab-button.active {
+            background-color: #3E8E41;
         }
-        .tab button.active {
-            background-color: #ccc;
-        }
-        .tabcontent {
+        /* Tab content styles */
+        .tab-content {
             display: none;
             padding: 20px;
-            border-top: none;
         }
         /* Show tab content when active */
-        .tabcontent.active {
+        .tab-content.active {
             display: block;
         }
     </style>
 </head>
 <body>
     <h2>Beachbot Control Hub</h2>
-    <div class="tab">
-        <button class="tablinks" onclick="openTab(event, 'rc_tab')">RC</button>
-        <button class="tablinks" onclick="openTab(event, 'autonomous_tab')">Autonomous</button>
+    <div class="tab-container">
+        <button class="tab-button" onclick="openTab(event, 'rc_tab')">RC</button>
+        <button class="tab-button" onclick="openTab(event, 'autonomous_tab')">Autonomous</button>
     </div>
-    <div id="rc_tab" class="tabcontent">
+    <div id="rc_tab" class="tab-content">
         <h3>Navigate by remote control using a joystick below</h3>
         <div id="zone_joystick" style="float:left;width:100%;margin:0;padding:0;"></div>
         <!-- Display coordinates here -->
@@ -108,7 +109,7 @@
             });
         </script>
     </div>
-    <div id="autonomous_tab" class="tabcontent">
+    <div id="autonomous_tab" class="tab-content">
         <h3>Navigate autonomously to your location</h3>
         <button onclick="sendNavigateRequest()">Navigate to me</button>
         <button onclick="cancelNavigateRequest()">Cancel</button>
@@ -173,12 +174,12 @@
         // Function to open a tab and close others
         function openTab(event, tabName) {
             // Hide all tab content
-            const tabcontent = document.querySelectorAll('.tabcontent');
+            const tabcontent = document.querySelectorAll('.tab-content');
             tabcontent.forEach((content) => content.classList.remove('active'));
 
             // Remove the "active" class from all tab buttons
-            const tablinks = document.querySelectorAll('.tablinks');
-            tablinks.forEach((tab) => tab.classList.remove('active'));
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(tab => tab.classList.remove('active'));
 
             // Show the current tab and add "active" class to the button
             document.getElementById(tabName).classList.add('active');
@@ -203,7 +204,7 @@
 
         // Open Tab 1 by default
         document.addEventListener("DOMContentLoaded", function() {
-            document.querySelector('.tablinks').click();
+            document.querySelector('.tab-button').click();
         });
     </script>
 </body>
