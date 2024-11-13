@@ -2,7 +2,7 @@ import asyncio
 import os
 import sys
 import time
-from typing import DefaultDict, Optional, Tuple
+from typing import DefaultDict, Literal, Optional, Tuple
 
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -53,7 +53,9 @@ class NavigationServer(base_node.BaseNode):
         )
         self.set_request_server(registry.Requests.NAVIGATE, self._rcv_request)
 
-    async def _rcv_request(self, request: messages.NavigateRequest) -> None:
+    async def _rcv_request(
+        self, request: messages.NavigateRequest
+    ) -> Literal["success", "fail"]:
         self._request = request
         self._path = self._nav_planner.gen_path(
             self._cur_gps_point, self._cur_heading, self._request.target
@@ -65,6 +67,9 @@ class NavigationServer(base_node.BaseNode):
             await self._run_control_loop()
         finally:
             self._request = None
+            self._stop_motors()
+
+        return "success" if self._finished() else "fail"
 
     def _update_gps_state(self, msg: messages.GPSMessage) -> None:
         self._cur_gps_point = primitives.GPSPoint(
@@ -134,6 +139,15 @@ class NavigationServer(base_node.BaseNode):
         angular_velocity = (right_vel - left_vel) / 2
 
         return linear_velocity, angular_velocity
+
+    def _stop_motors(self) -> None:
+        for motor in self._motors:
+            msg = messages.MotorCommandMessage(motor=motor, velocity=0.0)
+            channel = registry.motor_channel(motor)
+            self.publish(channel, msg)
+
+    def _finished(self) -> bool:
+        return False
 
 
 if __name__ == "__main__":

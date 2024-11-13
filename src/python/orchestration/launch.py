@@ -39,6 +39,10 @@ class NodeConfig(pydantic.BaseModel):
         return NodeConfig(file_name="motor_control_node.py")
 
     @classmethod
+    def navigation_server(cls) -> NodeConfig:
+        return NodeConfig(file_name="navigation_server.py")
+
+    @classmethod
     def ublox_data_node(cls) -> NodeConfig:
         return NodeConfig(file_name="ublox_data_node.py")
 
@@ -152,6 +156,7 @@ def _gen_profile(profile: Literal["ui", "rc"]) -> List[NodeConfig]:
         return [
             NodeConfig.ublox_data_node(),
             NodeConfig.motor_control_node(),
+            NodeConfig.navigation_server(),
             NodeConfig.ui_node(),
         ]
     elif profile == "rc":

@@ -77,9 +77,19 @@ class RequestServer:
 
     async def _process_request(self, msg: core.Request) -> None:
         self._cur_request = _RequestExecutable(msg, self._request_function)
+        log.info(f"Executing {self._node_id.name} request from {req(msg.origin).name}.")
         response = await self._cur_request.execute()
 
-        self._response_publishers[req(response.request.origin)].publish(response)
+        log.info(
+            f"Finished Executing {self._node_id.name} request with result {response.result}."
+        )
+        sender_id = req(response.request.origin)
+        if sender_id not in self._response_publishers:
+            self._response_publishers[sender_id] = pubsub.Publisher[
+                core.RequestResponse
+            ](self._node_id, self._request_spec.response_channel(sender_id))
+
+        self._response_publishers[sender_id].publish(response)
 
     def _cancel_request(self, msg: core.RequestCancel) -> None:
         if self._cur_request and self._cur_request.request == msg.request:

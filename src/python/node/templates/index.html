@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, user-scalable=no">
-    <title>Tabbed Interface</title>
+    <title>Beachbot Control Hub</title>
     <style>
         #zone_joystick {
             width: 100vw;  /* 100% of viewport width */
-            height: 60vh; /* 60% of viewport height */
+            height: 50vh; /* 50% of viewport height */
             margin: 0 auto;
             background-color: #f0f0f0;
             position: relative;
@@ -50,12 +50,12 @@
     </style>
 </head>
 <body>
-    <h2>Tabbed Interface</h2>
+    <h2>Beachbot Control Hub</h2>
     <div class="tab">
-        <button class="tablinks" onclick="openTab(event, 'Tab1')">RC</button>
-        <button class="tablinks" onclick="openTab(event, 'Tab2')">Autonomous</button>
+        <button class="tablinks" onclick="openTab(event, 'rc_tab')">RC</button>
+        <button class="tablinks" onclick="openTab(event, 'autonomous_tab')">Autonomous</button>
     </div>
-    <div id="Tab1" class="tabcontent">
+    <div id="rc_tab" class="tabcontent">
         <h3>Navigate by remote control using a joystick below</h3>
         <div id="zone_joystick" style="float:left;width:100%;margin:0;padding:0;"></div>
         <!-- Display coordinates here -->
@@ -103,22 +103,27 @@
                   .then(data => console.log("Joystick released:", data));
 
                 // Update the coordinates display
-                coordinatesDisplay.textContent = `Turn (positive is right): 0.0, Drive (positive is forward): 0.0`;
+                coordinatesDisplay.textContent = `Turn (positive is right): 0.00, Drive (positive is forward): 0.00`;
 
             });
         </script>
     </div>
-    <div id="Tab2" class="tabcontent">
+    <div id="autonomous_tab" class="tabcontent">
         <h3>Navigate autonomously to your location</h3>
-        <button onclick="sendNavigateRequest()">Come to me</button>
-        <p id="gps_coordinates"></p>
+        <button onclick="sendNavigateRequest()">Navigate to me</button>
+        <button onclick="cancelNavigateRequest()">Cancel</button>
+        <div id="gps_coordinates">Status: IDLE</div>
         <script>
+            const GPSCoordinatesDisplay = document.getElementById('gps_coordinates');
             function sendNavigateRequest() {
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
                         function(position) {
                             const latitude = position.coords.latitude;
                             const longitude = position.coords.longitude;
+
+                            // Update the coordinates display
+                            GPSCoordinatesDisplay.textContent = `Status: Navigating to Latitude: ${latitude}, Longitude: ${longitude}`;
 
                             // Send a navigate request with GPS data to the Flask server
                             fetch('/navigate', {
@@ -134,9 +139,10 @@
                             .then(response => response.json())
                             .then(data => {
                                 console.log('Server response:', data);
+                                GPSCoordinatesDisplay.textContent = `Status: Finished navigating to Latitude: ${latitude}, Longitude: ${longitude}`;
                             })
                             .catch(error => {
-                                console.error('Error sending navigate request:', error);
+                                console.error('Error sending navigate request.');
                             });
                         },
                         function(error) {
@@ -146,6 +152,20 @@
                 } else {
                     alert("Geolocation is not supported by this browser.");
                 }
+            }
+            function cancelNavigateRequest() {
+                fetch('/navigate', {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Server response:', data);
+                })
+                .catch(error => {
+                    console.error('Error sending cancel request:', error);
+                });
+                // Update the coordinates display
+                GPSCoordinatesDisplay.textContent = `Status: IDLE`;
             }
         </script>
     </div>
@@ -163,6 +183,22 @@
             // Show the current tab and add "active" class to the button
             document.getElementById(tabName).classList.add('active');
             event.currentTarget.classList.add('active');
+
+            // Send a request to the server when switching tabs
+            fetch(`/tab_switch`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ tab: tabName }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(`Server response:`, data);
+            })
+            .catch(error => {
+                console.error('Error sending tab switch request:', error);
+            });
         }
 
         // Open Tab 1 by default

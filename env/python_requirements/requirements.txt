@@ -10,3 +10,4 @@ spidev==3.6
 numpy==2.1.3
 rsplan==1.0.10
 Flask==3.0.3
+flask[async]==3.0.3
