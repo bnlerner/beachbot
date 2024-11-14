@@ -9,21 +9,22 @@ class GPSMessage(core.BaseMessage):
 
     latitude: float
     longitude: float
+    ellipsoid_height: float
 
 
 class VehicleDynamicsMessage(core.BaseMessage):
-    """The vehicle dynamics data that comes from the body mounted IMU."""
+    """The vehicle dynamics data that comes from the vehicle mounted IMU.
+    Data is expressed in BODY frame. See frames for more details.
+    """
 
+    # RPH is in degrees.
     roll: float
     pitch: float
-    # TODO: Verify if this heading is in degrees or radians.
     heading: float
+    # angular speed rates in deg/s
     roll_rate: float
     pitch_rate: float
     yaw_rate: float
-    roll_acceleration: float
-    pitch_acceleration: float
-    heading_acceleration: float
 
 
 class MotorCommandMessage(core.BaseMessage):

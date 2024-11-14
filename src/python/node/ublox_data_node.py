@@ -1,5 +1,4 @@
 import asyncio
-import dataclasses
 import os
 import sys
 import time
@@ -10,7 +9,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import log
 import serial  # type: ignore[import-untyped]
-from ipc import messages, registry
+from drivers.gps import messages as gps_messages
+from ipc import messages as ipc_messages
+from ipc import registry
 from ublox_gps import UbloxGps  # type: ignore[import-untyped]
 
 from node import base_node
@@ -19,29 +20,6 @@ _TIMEOUT = 1.0
 _BAUDRATE = 38400
 _PORT = "/dev/ttyACM0"
 _PUBLISH_RATE = 2  # In Hz
-
-
-@dataclasses.dataclass
-class _RPYDynamicsData:
-    """Information from the IMU on the Ublox module."""
-
-    roll: float
-    pitch: float
-    heading: float
-    roll_rate: float
-    pitch_rate: float
-    yaw_rate: float
-    roll_acceleration: float
-    pitch_acceleration: float
-    heading_acceleration: float
-
-
-@dataclasses.dataclass
-class _GPSData:
-    """Information directly from the GPS on the Ublox module."""
-
-    latitude: float
-    longitude: float
 
 
 class UbloxDataNode(base_node.BaseNode):
@@ -54,8 +32,9 @@ class UbloxDataNode(base_node.BaseNode):
         self._serial_conn = serial.Serial(_PORT, baudrate=_BAUDRATE, timeout=_TIMEOUT)
         self._ublox_gps = UbloxGps(self._serial_conn)
 
-        self._rpy_dyn_data: Optional[_RPYDynamicsData] = None
-        self._gps_data: Optional[_GPSData] = None
+        self._att_data: Optional[gps_messages.UbloxATTMessage] = None
+        self._pvt_data: Optional[gps_messages.UbloxPVTMessage] = None
+        self._ins_data: Optional[gps_messages.UbloxINSMessage] = None
 
         self.add_tasks(self._listen, self._publish)
         self.add_publishers(registry.Channels.BODY_DYNAMICS, registry.Channels.BODY_GPS)
@@ -63,9 +42,11 @@ class UbloxDataNode(base_node.BaseNode):
     async def _listen(self) -> None:
         while True:
             try:
-                self._update_rpy_dyn_data()
+                self._update_vehicle_attitude_data()
                 await asyncio.sleep(0)
                 self._update_gps_data()
+                await asyncio.sleep(0)
+                self._update_vehicle_ins_data()
                 await asyncio.sleep(0)
             except IOError as err:
                 log.error(f"{err=}")
@@ -84,62 +65,49 @@ class UbloxDataNode(base_node.BaseNode):
             sleep_time = total_time - write_time
             await asyncio.sleep(sleep_time)
 
-    def _update_rpy_dyn_data(self) -> None:
-        veh_attitude = self._ublox_gps.veh_attitude()
-        veh_dyn = self._ublox_gps.vehicle_dynamics()
-        if veh_attitude and veh_dyn:
-            self._rpy_dyn_data = _RPYDynamicsData(
-                roll=veh_attitude.roll,
-                pitch=veh_attitude.pitch,
-                heading=veh_attitude.heading,
-                roll_rate=veh_dyn.xAngRate,
-                pitch_rate=veh_dyn.yAngRate,
-                yaw_rate=veh_dyn.zAngRate,
-                roll_acceleration=veh_attitude.accRoll,
-                pitch_acceleration=veh_attitude.accPitch,
-                heading_acceleration=veh_attitude.accHeading,
-            )
-            log.data(
-                roll=veh_attitude.roll,
-                pitch=veh_attitude.pitch,
-                heading=veh_attitude.heading,
-                roll_rate=veh_dyn.xAngRate,
-                pitch_rate=veh_dyn.yAngRate,
-                yaw_rate=veh_dyn.zAngRate,
-                roll_acceleration=veh_attitude.accRoll,
-                pitch_acceleration=veh_attitude.accPitch,
-                heading_acceleration=veh_attitude.accHeading,
-            )
+    def _update_vehicle_attitude_data(self) -> None:
+        if veh_att := self._ublox_gps.veh_attitude():
+            self._att_data = gps_messages.UbloxATTMessage.from_ublox_message(veh_att)
+            log.data(**self._att_data.__dict__)
         else:
-            self._rpy_dyn_data = None
+            self._att_data = None
+
+    def _update_vehicle_ins_data(self) -> None:
+        if veh_dyn := self._ublox_gps.vehicle_dynamics():
+            self._ins_data = gps_messages.UbloxINSMessage.from_ublox_message(veh_dyn)
+            log.data(**self._ins_data.__dict__)
+        else:
+            self._ins_data = None
 
     def _update_gps_data(self) -> None:
-        if coords := self._ublox_gps.geo_coords():
-            self._gps_data = _GPSData(latitude=coords.lat, longitude=coords.lon)
-            log.data(latitude=coords.lat, longitude=coords.lon)
+        if pvt_msg := self._ublox_gps.geo_coords():
+            self._pvt_data = gps_messages.UbloxPVTMessage.from_ublox_message(pvt_msg)
+            log.data(**self._pvt_data.__dict__)
         else:
-            self._gps_data = None
+            self._pvt_data = None
 
-    def _gen_vehicle_message(self) -> Optional[messages.VehicleDynamicsMessage]:
-        if self._rpy_dyn_data:
-            return messages.VehicleDynamicsMessage(
-                roll=self._rpy_dyn_data.roll,
-                pitch=self._rpy_dyn_data.pitch,
-                heading=self._rpy_dyn_data.heading,
-                roll_rate=self._rpy_dyn_data.roll_rate,
-                pitch_rate=self._rpy_dyn_data.pitch_rate,
-                yaw_rate=self._rpy_dyn_data.yaw_rate,
-                roll_acceleration=self._rpy_dyn_data.roll_acceleration,
-                pitch_acceleration=self._rpy_dyn_data.pitch_acceleration,
-                heading_acceleration=self._rpy_dyn_data.heading_acceleration,
+    def _gen_vehicle_message(self) -> Optional[ipc_messages.VehicleDynamicsMessage]:
+        if self._att_data and self._ins_data:
+            return ipc_messages.VehicleDynamicsMessage(
+                roll=self._att_data.roll,
+                pitch=self._att_data.pitch,
+                heading=self._att_data.heading,
+                roll_rate=self._ins_data.x_axis_angular_rate,
+                # Negative because the pitch axis (y-axis) and the yaw axis (z-axis) are
+                # both pointed in the opposite direction from the VEHICLE frame
+                # (sensor reported) vs BODY frame (desired).
+                pitch_rate=-self._ins_data.y_axis_angular_rate,
+                yaw_rate=-self._ins_data.z_axis_angular_rate,
             )
 
         return None
 
-    def _gen_gps_message(self) -> Optional[messages.GPSMessage]:
-        if self._gps_data:
-            return messages.GPSMessage(
-                latitude=self._gps_data.latitude, longitude=self._gps_data.longitude
+    def _gen_gps_message(self) -> Optional[ipc_messages.GPSMessage]:
+        if self._pvt_data:
+            return ipc_messages.GPSMessage(
+                latitude=self._pvt_data.latitude,
+                longitude=self._pvt_data.longitude,
+                ellipsoid_height=self._pvt_data.height,
             )
 
         return None

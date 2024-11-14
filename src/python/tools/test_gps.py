@@ -1,5 +1,13 @@
+import os
+import sys
+
 import serial  # type: ignore[import-untyped]
 from ublox_gps import UbloxGps  # type: ignore[import-untyped]
+
+# Get the path to the root of the project
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from drivers.gps import messages
 
 # Can also use SPI here - import spidev, but we dont because USB is easier to setup.
 port = serial.Serial("/dev/ttyACM0", baudrate=38400, timeout=1)
@@ -11,20 +19,25 @@ def run() -> None:
         print("Listenting for UBX Messages.")
         while True:
             try:
-                coords = gps.geo_coords()
-                print("Latitude: ", coords.lat, " Longitude: ", coords.lon)
-                veh = gps.veh_attitude()
-                print("Roll: ", veh.roll)
-                print("Pitch: ", veh.pitch)
-                print("Heading: ", veh.heading)
-                print("Roll Acceleration: ", veh.accRoll)
-                print("Pitch Acceleration: ", veh.accPitch)
-                print("Heading Acceleration: ", veh.accHeading)
-                veh_dyn = gps.vehicle_dynamics()
-                print(
-                    f"{veh_dyn=},{veh_dyn.xAccel=}, {veh_dyn.xAngRate=}, {veh_dyn.yAccel=}"
-                )
-                print(f"{gps.imu_alignment()=}")
+                # Position, Velocity and Time message.
+                if coords := gps.geo_coords():
+                    msg = messages.UbloxPVTMessage.from_ublox_message(coords)
+                    print(f"{msg=}\n")
+                # Vehicle attitude
+                if veh := gps.veh_attitude():
+                    msg = messages.UbloxATTMessage.from_ublox_message(veh)
+                    print(f"{msg=}\n")
+                # Vehicle dynamics.
+                if veh_dyn := gps.vehicle_dynamics():
+                    msg = messages.UbloxINSMessage.from_ublox_message(veh_dyn)
+                    print(f"{msg=}\n")
+                # Status of the sensors being used for sensor fusion.
+                if status := gps.esf_status():
+                    msg = messages.UbloxESFStatusMessage.from_ublox_message(status)
+                    print(f"{msg=}\n")
+                # Status of the RF antenna.
+                rf_status = gps.rf_ant_status()
+                print(f"{rf_status=}\n")
 
             except (ValueError, IOError) as err:
                 print(err)
