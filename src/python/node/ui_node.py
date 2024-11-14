@@ -56,8 +56,7 @@ class UINode:
                 ssl_context=(_CERT_PATH, _KEY_PATH),
             )
         finally:
-            if self._nav_task is not None:
-                self._nav_task.cancel()
+            self._clean_up_tasks()
 
     def _add_rc_cmd_publishers(self) -> None:
         self._publishers[registry.Channels.FRONT_LEFT_MOTOR_CMD] = pubsub.Publisher(
@@ -249,6 +248,16 @@ class UINode:
                 self._nav_task.cancel()
         else:
             raise ValueError(f"Unexpected tab name {tab_name=}")
+
+    def _clean_up_tasks(self) -> None:
+        if self._nav_task is not None:
+            self._nav_task.cancel()
+
+        for client in self._request_clients.values():
+            client.close()
+
+        for pub in self._publishers.values():
+            pub.close()
 
 
 if __name__ == "__main__":

@@ -107,6 +107,9 @@ class BaseNode:
         for pub in self._publishers.values():
             pub.close()
 
+        for client in self._request_clients.values():
+            client.close()
+
         if self._request_server:
             self._request_server.close()
 

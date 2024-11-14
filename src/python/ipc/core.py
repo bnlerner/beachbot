@@ -56,7 +56,7 @@ class RequestSpec:
         return ChannelSpec(channel="request-" + self.base_channel)
 
     def response_channel(self, node_id: NodeID) -> ChannelSpec:
-        return ChannelSpec(channel="response-" + self.base_channel + node_id.name)
+        return ChannelSpec(channel="response-" + self.base_channel + "-" + node_id.name)
 
 
 class Request(BaseMessage):
