@@ -1,30 +1,17 @@
+import geometry
 from config import robot_config
-from planning import primitives
 
 from ipc import core
 
 
-class GPSMessage(core.BaseMessage):
-    """The GPS data from the body mounted GPS receiver."""
-
-    latitude: float
-    longitude: float
-    ellipsoid_height: float
-
-
-class VehicleDynamicsMessage(core.BaseMessage):
-    """The vehicle dynamics data that comes from the vehicle mounted IMU.
-    Data is expressed in BODY frame. See frames for more details.
+class VehicleKinematicsMessage(core.BaseMessage):
+    """The vehicle kinematics data expresses the vehicles state including position,
+    orientation, velocity and angular velocity. Data comes from the vehicle mounted IMU
+    and GPS. Data is expressed in BODY frame. See frames for more details.
     """
 
-    # RPH is in degrees.
-    roll: float
-    pitch: float
-    heading: float
-    # angular speed rates in deg/s
-    roll_rate: float
-    pitch_rate: float
-    yaw_rate: float
+    pose: geometry.Pose
+    twist: geometry.Twist
 
 
 class MotorCommandMessage(core.BaseMessage):
@@ -48,4 +35,4 @@ class MotorVelocityMessage(core.BaseMessage):
 class NavigateRequest(core.Request):
     """A location to navigate to."""
 
-    target: primitives.GPSPoint
+    target: geometry.Position

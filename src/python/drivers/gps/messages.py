@@ -27,7 +27,7 @@ class UbloxPVTMessage(pydantic.BaseModel):
     longitude: float
     latitude: float
     # height above the ellipsoid in mm
-    height: float
+    ellipsoid_height: float
     # Height above mean sea level in mm
     height_above_sea_level: float
     # horizontal accuracy in mm
@@ -42,6 +42,9 @@ class UbloxPVTMessage(pydantic.BaseModel):
     down_velocity: float
     # Ground speed (mm/s) in 2D
     ground_speed: float
+    # Heading of the vehicle. Set to the same value as heading of motion if receiver is
+    # not in sensor fusion mode.
+    heading_of_vehicle: float
     # Direction the GPS is moving in degrees
     heading_of_motion: float
     # Accuracy of heading in degrees
@@ -56,7 +59,7 @@ class UbloxPVTMessage(pydantic.BaseModel):
             num_satellites=msg.numSV,
             longitude=msg.lon,
             latitude=msg.lat,
-            height=msg.height,
+            ellipsoid_height=msg.height,
             height_above_sea_level=msg.hMSL,
             h_acc=msg.hAcc,
             v_acc=msg.vAcc,
@@ -64,6 +67,7 @@ class UbloxPVTMessage(pydantic.BaseModel):
             east_velocity=msg.velE,
             down_velocity=msg.velD,
             ground_speed=msg.gSpeed,
+            heading_of_vehicle=msg.headVeh,
             heading_of_motion=msg.headMot,
             heading_acc=msg.hAcc,
             gps_quality=enums.GPSQuality(msg.flags.carrSoln),

@@ -1,8 +1,8 @@
 #!/bin/bash
 sudo add-apt-repository ppa:deadsnakes/ppa && \
 sudo apt update && sudo apt-get update && \
-sudo apt install terminator software-properties-common apt-transport-https wget -y && \
-sudo apt-get install curl python3-pip python3.12 python3.12-dev python3.12-tk gpsd gpsd-clients jq -y && \
+sudo apt install terminator software-properties-common apt-transport-https wget screen -y && \
+sudo apt-get install curl python3-pip python3.12 python3.12-dev python3.12-tk gpsd gpsd-clients jq proj-bin -y && \
 sudo apt install python3.7-distutils python3.8-distutils python3.9-distutils python3.10-distutils python3.11-distutils python3-12-distutils && \
 curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12 && \
 sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1 && \

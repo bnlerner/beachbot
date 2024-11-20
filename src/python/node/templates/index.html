@@ -164,6 +164,7 @@
                         function(position) {
                             const latitude = position.coords.latitude;
                             const longitude = position.coords.longitude;
+                            const altitude = position.coords.altitude;
 
                             // Update the coordinates display
                             GPSCoordinatesDisplay.textContent = `Status: Navigating to Latitude: ${latitude.toFixed(4)}, Longitude: ${longitude.toFixed(4)}`;
@@ -177,6 +178,7 @@
                                 body: JSON.stringify({
                                     latitude: latitude,
                                     longitude: longitude,
+                                    altitude: altitude,
                                 }),
                             })
                             .then(response => response.json())

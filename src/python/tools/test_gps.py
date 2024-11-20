@@ -21,20 +21,22 @@ def run() -> None:
             try:
                 # Position, Velocity and Time message.
                 if coords := gps.geo_coords():
-                    msg = messages.UbloxPVTMessage.from_ublox_message(coords)
-                    print(f"{msg=}\n")
+                    pvt_msg = messages.UbloxPVTMessage.from_ublox_message(coords)
+                    print(f"{pvt_msg=}\n")
                 # Vehicle attitude
                 if veh := gps.veh_attitude():
-                    msg = messages.UbloxATTMessage.from_ublox_message(veh)
-                    print(f"{msg=}\n")
+                    att_msg = messages.UbloxATTMessage.from_ublox_message(veh)
+                    print(f"{att_msg=}\n")
                 # Vehicle dynamics.
                 if veh_dyn := gps.vehicle_dynamics():
-                    msg = messages.UbloxINSMessage.from_ublox_message(veh_dyn)
-                    print(f"{msg=}\n")
+                    ins_msg = messages.UbloxINSMessage.from_ublox_message(veh_dyn)
+                    print(f"{ins_msg=}\n")
                 # Status of the sensors being used for sensor fusion.
                 if status := gps.esf_status():
-                    msg = messages.UbloxESFStatusMessage.from_ublox_message(status)
-                    print(f"{msg=}\n")
+                    status_msg = messages.UbloxESFStatusMessage.from_ublox_message(
+                        status
+                    )
+                    print(f"{status_msg=}\n")
                 # Status of the RF antenna.
                 rf_status = gps.rf_ant_status()
                 print(f"{rf_status=}\n")

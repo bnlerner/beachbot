@@ -11,14 +11,18 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import log
 from ipc import core, messages, pubsub, registry, session
 from ipc import request as ipc_request
+from localization import gps_transformer, primitives
 from models import constants, motor_velocity_model
-from planning import primitives
 
 _INDEX_PATH = "index.html"
 _RC_ENDPOINT = "/joystick_input"
 _NAVIGATE_ENDPOINT = "/navigate"
 _CERT_PATH = "env/auth/cert.pem"
 _KEY_PATH = "env/auth/key.pem"
+# UTM zone for Florida is zone number 17N.
+_DEFAULT_UTM_ZONE = primitives.UTMZone(
+    zone_number=17, hemisphere="north", epsg_code="EPSG:32617"
+)
 
 
 class UINode:
@@ -31,6 +35,7 @@ class UINode:
         self._host = host
         self._port = port
         self._debug = debug
+        self._gps_transformer = gps_transformer.GPSTransformer(_DEFAULT_UTM_ZONE)
 
         self._motor_configs = session.get_robot_motors()
         self._rc_controller = motor_velocity_model.MotorVelocityModel(
@@ -215,12 +220,15 @@ class UINode:
         self, data: Dict[str, float]
     ) -> Optional[messages.NavigateRequest]:
         if (latitude := data.get("latitude")) and (longitude := data.get("longitude")):
+            altitude = data.get("altitude")
             # Process the GPS data here (store it, log it, etc.)
             log.info(
-                f"Received GPS data: Latitude = {latitude}, Longitude = {longitude}"
+                f"Received GPS data: Latitude = {latitude}, Longitude = {longitude}, altitude = {altitude}"
             )
-            gps_pt = primitives.GPSPoint(latitude=latitude, longitude=longitude)
-            return messages.NavigateRequest(target=gps_pt)
+            position = self._gps_transformer.transform_position(
+                longitude, latitude, height_above_sea_level=altitude
+            )
+            return messages.NavigateRequest(target=position)
         else:
             return None
 

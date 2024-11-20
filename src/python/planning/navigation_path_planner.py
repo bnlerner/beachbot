@@ -1,5 +1,6 @@
 from typing import List
 
+import geometry
 import rsplan
 
 from planning import primitives
@@ -20,16 +21,12 @@ class NavigationPathPlanner:
         self._obstacles = obstacles
 
     def gen_path(
-        self, start: primitives.GPSPoint, start_yaw: float, end: primitives.GPSPoint
+        self, start: geometry.Pose, end: geometry.Position
     ) -> primitives.NavigationPath:
         # Replace with way to calculate the state of the robot. Poss
-        end_yaw = start.angle_to(end)
-        start_pose = primitives.NavigationPoint(
-            point=start, yaw=start_yaw, driving_direction=1
-        ).to_rs_nav_plan_point()
-        end_pose = primitives.NavigationPoint(
-            point=end, yaw=end_yaw, driving_direction=1
-        ).to_rs_nav_plan_point()
+        end_yaw = start.position.angle_to(end)
+        start_pose = (start.position.x, start.position.y, start.orientation.yaw)
+        end_pose = (end.x, end.y, end_yaw)
 
         path = rsplan.path(start_pose, end_pose, _TURN_RADIUS, _RUNWAY_SIZE, _STEP_SIZE)
 

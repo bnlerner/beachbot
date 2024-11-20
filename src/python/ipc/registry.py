@@ -11,8 +11,7 @@ from ipc import core, messages
 class Channels(SimpleNamespace):
     """A registry of all channels available to use."""
 
-    BODY_GPS = core.ChannelSpec[messages.GPSMessage](channel="body_gps")
-    BODY_DYNAMICS = core.ChannelSpec[messages.VehicleDynamicsMessage](
+    BODY_KINEMATICS = core.ChannelSpec[messages.VehicleKinematicsMessage](
         channel="vehicle_dynamics"
     )
     FRONT_LEFT_MOTOR_CMD = core.ChannelSpec[messages.MotorCommandMessage](
