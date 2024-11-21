@@ -1,5 +1,4 @@
-from geometry import frames
-from python.geometry import cartesian_objects, math_helpers
+from geometry import cartesian_objects, frames, math_helpers
 
 UTM = frames.ReferenceFrame.UTM
 VEHICLE = frames.ReferenceFrame.VEHICLE
@@ -15,6 +14,7 @@ Velocity = cartesian_objects.Velocity
 Pose = cartesian_objects.Pose
 Twist = cartesian_objects.Twist
 AngularVelocity = cartesian_objects.AngularVelocity
+AngularAcceleration = cartesian_objects.AngularAcceleration
 
 wrap_degrees = math_helpers.wrap_degrees
 sign = math_helpers.sign

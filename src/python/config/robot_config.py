@@ -11,7 +11,7 @@ import pydantic
 
 
 class Wheel(pydantic.BaseModel):
-    """The configuration of the wheel"""
+    """A generic tired wheel on the robot"""
 
     # Found on their product page from amazon
     # 13", in meters
@@ -85,13 +85,12 @@ class Drivetrain(pydantic.BaseModel):
 
 
 class Beachbot(pydantic.BaseModel):
-    """A beachbot robot. Contains a robot with 4 independently driven wheels + motor
-    drivetrain.
-    """
+    """A beachbot robot, contains 4 independently driven wheels + motor drivetrain."""
 
     drivetrain: List[Drivetrain]
 
     inner_axle_wheel_distance: float = 0.393
+    # The distance between the two "axles" of the drivetrain.
     wheel_base: float = 0.405
 
     @property

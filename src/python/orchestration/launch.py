@@ -31,8 +31,8 @@ class NodeConfig(pydantic.BaseModel):
     ####################################################################################
 
     @classmethod
-    def rc_node(cls) -> NodeConfig:
-        return NodeConfig(file_name="rc_node.py", env_vars={"DISPLAY": ":1"})
+    def localizer_node(cls) -> NodeConfig:
+        return NodeConfig(file_name="localizer_node.py")
 
     @classmethod
     def motor_control_node(cls) -> NodeConfig:
@@ -41,6 +41,10 @@ class NodeConfig(pydantic.BaseModel):
     @classmethod
     def navigation_server(cls) -> NodeConfig:
         return NodeConfig(file_name="navigation_server.py")
+
+    @classmethod
+    def rc_node(cls) -> NodeConfig:
+        return NodeConfig(file_name="rc_node.py", env_vars={"DISPLAY": ":1"})
 
     @classmethod
     def ublox_data_node(cls) -> NodeConfig:
@@ -154,10 +158,11 @@ class Orchestrator:
 def _gen_profile(profile: Literal["ui", "rc"]) -> List[NodeConfig]:
     if profile == "ui":
         return [
-            NodeConfig.ublox_data_node(),
+            NodeConfig.localizer_node(),
             NodeConfig.motor_control_node(),
             NodeConfig.navigation_server(),
             NodeConfig.ui_node(),
+            NodeConfig.ublox_data_node(),
         ]
     elif profile == "rc":
         return [

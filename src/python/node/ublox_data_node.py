@@ -14,17 +14,13 @@ import log
 from drivers.gps import messages as gps_messages
 from ipc import messages as ipc_messages
 from ipc import registry
-from localization import gps_transformer, primitives
 
 from node import base_node
 
 _TIMEOUT = 1.0
 _BAUDRATE = 38400
 _PORT = "/dev/ttyACM0"
-# UTM zone for Florida is zone number 17N.
-_DEFAULT_UTM_ZONE = primitives.UTMZone(
-    zone_number=17, hemisphere="north", epsg_code="EPSG:32617"
-)
+_PUB_FREQUENCY = 5
 
 
 class UbloxDataNode(base_node.BaseNode):
@@ -36,14 +32,16 @@ class UbloxDataNode(base_node.BaseNode):
         super().__init__(registry.NodeIDs.UBLOX_DATA)
         self._serial_conn = serial.Serial(_PORT, baudrate=_BAUDRATE, timeout=_TIMEOUT)
         self._ublox_gps = UbloxGps(self._serial_conn)
-        self._gps_transformer = gps_transformer.GPSTransformer(_DEFAULT_UTM_ZONE)
 
         self._att_msg: Optional[gps_messages.UbloxATTMessage] = None
         self._pvt_msg: Optional[gps_messages.UbloxPVTMessage] = None
         self._ins_msg: Optional[gps_messages.UbloxINSMessage] = None
 
-        self.add_tasks(self._query_ublox, self._publish)
-        self.add_publishers(registry.Channels.BODY_KINEMATICS)
+        self.add_tasks(self._query_ublox)
+        self.add_looped_tasks(
+            {self._publish_gnss: _PUB_FREQUENCY, self._publish_esf: _PUB_FREQUENCY}
+        )
+        self.add_publishers(registry.Channels.GNSS, registry.Channels.ESF)
 
     async def _query_ublox(self) -> None:
         """Continuously queries the Ublox module for data. Note that its update rate is
@@ -60,14 +58,16 @@ class UbloxDataNode(base_node.BaseNode):
             finally:
                 await asyncio.sleep(0)
 
-    async def _publish(self) -> None:
-        """Publishes as fast as data can update."""
-        while True:
-            if veh_msg := self._gen_vehicle_kin_msg():
-                self.publish(registry.Channels.BODY_KINEMATICS, veh_msg)
-                self._clear_data_cache()
+    def _publish_gnss(self) -> None:
+        if gnss_msg := self._gen_gnss_msg():
+            self.publish(registry.Channels.GNSS, gnss_msg)
+            self._pvt_msg = None
 
-            await asyncio.sleep(0)
+    def _publish_esf(self) -> None:
+        if esf_msg := self._gen_esf_msg():
+            self.publish(registry.Channels.ESF, esf_msg)
+            self._att_msg = None
+            self._ins_msg = None
 
     def _update_vehicle_attitude_data(self) -> None:
         if veh_att := self._ublox_gps.veh_attitude():
@@ -90,71 +90,46 @@ class UbloxDataNode(base_node.BaseNode):
         else:
             self._pvt_msg = None
 
-    def _clear_data_cache(self) -> None:
-        self._pvt_msg = None
-        self._att_msg = None
-        self._ins_msg = None
-
-    def _gen_vehicle_kin_msg(self) -> Optional[ipc_messages.VehicleKinematicsMessage]:
-        if self._att_msg and self._ins_msg and self._pvt_msg:
-            position = self._gps_transformer.transform_position(
-                self._pvt_msg.longitude,
-                self._pvt_msg.latitude,
+    def _gen_gnss_msg(self) -> Optional[ipc_messages.GNSSMessage]:
+        if self._pvt_msg:
+            ned_velocity = geometry.Velocity(
+                geometry.UTM,
+                self._pvt_msg.east_velocity,
+                self._pvt_msg.north_velocity,
+                -self._pvt_msg.down_velocity,
+            )
+            return ipc_messages.GNSSMessage(
+                latitude=self._pvt_msg.latitude,
+                longitude=self._pvt_msg.longitude,
                 ellipsoid_height=self._pvt_msg.ellipsoid_height,
+                ned_velocity=ned_velocity,
             )
-            yaw = self._gps_transformer.transform_heading(
-                self._pvt_msg.longitude, self._pvt_msg.latitude, self._att_msg.heading
+        else:
+            return None
+
+    def _gen_esf_msg(self) -> Optional[ipc_messages.ESFMessage]:
+        if self._ins_msg and self._att_msg:
+            spin = geometry.AngularVelocity(
+                geometry.VEHICLE,
+                self._ins_msg.x_axis_angular_rate,
+                self._ins_msg.y_axis_angular_rate,
+                self._ins_msg.z_axis_angular_rate,
             )
-            orientation = self._calc_orientation(self._att_msg, yaw)
-            pose = geometry.Pose(position, orientation)
-            velocity = self._calc_velocity(self._pvt_msg, orientation)
-            angular_velocity = self._calc_angular_velocity(self._ins_msg)
-            return ipc_messages.VehicleKinematicsMessage(
-                pose=pose, twist=geometry.Twist(velocity, angular_velocity)
+            angular_accel = geometry.AngularAcceleration(
+                geometry.VEHICLE,
+                self._ins_msg.x_axis_acceleration,
+                self._ins_msg.y_axis_acceleration,
+                self._ins_msg.z_axis_acceleration,
             )
-
-        return None
-
-    def _calc_angular_velocity(
-        self, ins_msg: gps_messages.UbloxINSMessage
-    ) -> geometry.AngularVelocity:
-        roll_rate = ins_msg.x_axis_angular_rate
-        # Negative because the pitch axis (y-axis) and the yaw axis (z-axis) are
-        # both pointed in the opposite direction from the VEHICLE frame
-        # (sensor reported) vs BODY frame (desired).
-        # angular speed rates in deg/s
-        pitch_rate = -ins_msg.y_axis_angular_rate
-        yaw_rate = -ins_msg.z_axis_angular_rate
-        return geometry.AngularVelocity(
-            geometry.VEHICLE,
-            ins_msg.x_axis_angular_rate,
-            ins_msg.y_axis_angular_rate,
-            ins_msg.z_axis_angular_rate,
-        )
-
-    def _calc_orientation(
-        self, att_msg: gps_messages.UbloxATTMessage, yaw: float
-    ) -> geometry.Orientation:
-        veh_ori = geometry.Orientation.from_intrinsic_rpy(
-            geometry.UTM, att_msg.roll, att_msg.pitch, 0.0
-        )
-        roll, pitch = veh_ori.roll, veh_ori.pitch
-        return geometry.Orientation(geometry.UTM, roll, pitch, yaw)
-
-    def _calc_velocity(
-        self, pvt_msg: gps_messages.UbloxPVTMessage, veh_ori: geometry.Orientation
-    ) -> geometry.Velocity:
-        """Calculates the vehicle velocity."""
-        utm_velocity = geometry.Velocity(
-            geometry.UTM,
-            pvt_msg.east_velocity,
-            pvt_msg.north_velocity,
-            -pvt_msg.down_velocity,
-        )
-        veh_velocity = utm_velocity.rotated(veh_ori.as_rotation().inverted())
-        veh_velocity.frame = geometry.VEHICLE
-
-        return veh_velocity
+            return ipc_messages.ESFMessage(
+                roll=self._att_msg.roll,
+                pitch=self._att_msg.pitch,
+                heading=self._att_msg.heading,
+                angular_velocity=spin,
+                angular_acceleration=angular_accel,
+            )
+        else:
+            return None
 
     async def shutdown_hook(self) -> None:
         self._serial_conn.close()

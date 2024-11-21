@@ -1,7 +1,5 @@
-import asyncio
 import os
 import sys
-import time
 from typing import Optional, Union
 
 # Get the path to the root of the project
@@ -36,12 +34,13 @@ class RCRobotNode(base_node.BaseNode):
             session.get_robot_config()
         )
         self.add_publishers(
-            registry.Channels.FRONT_LEFT_MOTOR_CMD,
-            registry.Channels.FRONT_RIGHT_MOTOR_CMD,
-            registry.Channels.REAR_LEFT_MOTOR_CMD,
-            registry.Channels.REAR_RIGHT_MOTOR_CMD,
+            registry.Channels.MOTOR_CMD_FRONT_LEFT,
+            registry.Channels.MOTOR_CMD_FRONT_RIGHT,
+            registry.Channels.MOTOR_CMD_REAR_LEFT,
+            registry.Channels.MOTOR_CMD_REAR_RIGHT,
         )
-        self.add_tasks(self._rc_listener.start, self._control_motors)
+        self.add_tasks(self._rc_listener.start)
+        self.add_looped_tasks({self._publish_motor_cmd_msgs: _PUBLISH_RATE})
 
     def _on_press(self, key: Optional[Union[keyboard.Key, keyboard.KeyCode]]) -> None:
         if isinstance(key, keyboard.Key):
@@ -50,16 +49,6 @@ class RCRobotNode(base_node.BaseNode):
     def _on_release(self, key: Optional[Union[keyboard.Key, keyboard.KeyCode]]) -> None:
         if isinstance(key, keyboard.Key):
             self._rc_velocity_generator.update(key, pressed=False)
-
-    async def _control_motors(self) -> None:
-        total_time = 1.0 / _PUBLISH_RATE
-        while True:
-            start_time = time.perf_counter()
-            self._publish_motor_cmd_msgs()
-
-            write_time = time.perf_counter() - start_time
-            sleep_time = total_time - write_time
-            await asyncio.sleep(sleep_time)
 
     def _publish_motor_cmd_msgs(self) -> None:
         for motor in self._motor_configs:

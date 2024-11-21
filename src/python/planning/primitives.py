@@ -18,10 +18,16 @@ class NavigationPath(pydantic.BaseModel):
         points = []
         for cur_wp, next_wp in zip(rs_wps[:-1], rs_wps[1:], strict=True):
             is_cusp_point = cur_wp.driving_direction != next_wp.driving_direction
-            points.append(NavigationPoint.from_rs_wp(cur_wp, is_cusp_point))
+            points.append(
+                NavigationPoint.from_rs_wp(
+                    cur_wp, rs_nav_path.turn_radius, is_cusp_point
+                )
+            )
 
-        # add the last waypoint
-        points.append(NavigationPoint.from_rs_wp(rs_wps[-1], False))
+        # add the last Nav point.
+        points.append(
+            NavigationPoint.from_rs_wp(rs_wps[-1], rs_nav_path.turn_radius, False)
+        )
         return NavigationPath(
             points=points,
             turn_radius=rs_nav_path.turn_radius,
@@ -43,6 +49,7 @@ class NavigationPoint(pydantic.BaseModel):
     yaw: float
     driving_direction: Literal[-1, 1]
     turn_direction: Literal[-1, 0, 1]
+    path_turn_radius: float
     is_cusp_point: bool
 
     @property
@@ -53,7 +60,7 @@ class NavigationPoint(pydantic.BaseModel):
 
     @classmethod
     def from_rs_wp(
-        cls, waypoint: rsplan.Waypoint, is_cusp_point: bool
+        cls, waypoint: rsplan.Waypoint, path_turn_radius: float, is_cusp_point: bool
     ) -> NavigationPoint:
         x, y, yaw = waypoint.pose_2d_tuple
         return NavigationPoint(
@@ -61,14 +68,17 @@ class NavigationPoint(pydantic.BaseModel):
             yaw=yaw,
             driving_direction=waypoint.driving_direction,
             turn_direction=waypoint.turn_direction,
+            path_turn_radius=path_turn_radius,
             is_cusp_point=is_cusp_point,
         )
 
-    def signed_turn_radius(self, turn_radius: float) -> Optional[float]:
+    @property
+    def signed_turn_radius(self) -> Optional[float]:
+        """A signed turn radius in (meters). If straight this is None."""
         if self.turn_direction == 0:
             return None
 
-        return self.turn_direction * turn_radius
+        return self.turn_direction * self.path_turn_radius
 
 
 class Obstacle(pydantic.BaseModel):

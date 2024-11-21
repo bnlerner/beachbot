@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 
 import serial  # type: ignore[import-untyped]
 from ublox_gps import UbloxGps  # type: ignore[import-untyped]
@@ -16,16 +17,17 @@ gps = UbloxGps(port)
 
 def run() -> None:
     try:
-        print("Listenting for UBX Messages.")
+        print("Listening for UBX Messages.")
         while True:
             try:
+                start = time.perf_counter()
                 # Position, Velocity and Time message.
                 if coords := gps.geo_coords():
                     pvt_msg = messages.UbloxPVTMessage.from_ublox_message(coords)
                     print(f"{pvt_msg=}\n")
                 # Vehicle attitude
-                if veh := gps.veh_attitude():
-                    att_msg = messages.UbloxATTMessage.from_ublox_message(veh)
+                if veh_att := gps.veh_attitude():
+                    att_msg = messages.UbloxATTMessage.from_ublox_message(veh_att)
                     print(f"{att_msg=}\n")
                 # Vehicle dynamics.
                 if veh_dyn := gps.vehicle_dynamics():
@@ -38,8 +40,10 @@ def run() -> None:
                     )
                     print(f"{status_msg=}\n")
                 # Status of the RF antenna.
-                rf_status = gps.rf_ant_status()
-                print(f"{rf_status=}\n")
+                if rf_status := gps.rf_ant_status():
+                    print(f"{rf_status=}\n")
+                print(f"Run time: {time.perf_counter() - start} s")
+                time.sleep(2)
 
             except (ValueError, IOError) as err:
                 print(err)

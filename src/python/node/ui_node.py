@@ -64,17 +64,17 @@ class UINode:
             self._clean_up_tasks()
 
     def _add_rc_cmd_publishers(self) -> None:
-        self._publishers[registry.Channels.FRONT_LEFT_MOTOR_CMD] = pubsub.Publisher(
-            self._node_id, registry.Channels.FRONT_LEFT_MOTOR_CMD
+        self._publishers[registry.Channels.MOTOR_CMD_FRONT_LEFT] = pubsub.Publisher(
+            self._node_id, registry.Channels.MOTOR_CMD_FRONT_LEFT
         )
-        self._publishers[registry.Channels.FRONT_RIGHT_MOTOR_CMD] = pubsub.Publisher(
-            self._node_id, registry.Channels.FRONT_RIGHT_MOTOR_CMD
+        self._publishers[registry.Channels.MOTOR_CMD_FRONT_RIGHT] = pubsub.Publisher(
+            self._node_id, registry.Channels.MOTOR_CMD_FRONT_RIGHT
         )
-        self._publishers[registry.Channels.REAR_LEFT_MOTOR_CMD] = pubsub.Publisher(
-            self._node_id, registry.Channels.REAR_LEFT_MOTOR_CMD
+        self._publishers[registry.Channels.MOTOR_CMD_REAR_LEFT] = pubsub.Publisher(
+            self._node_id, registry.Channels.MOTOR_CMD_REAR_LEFT
         )
-        self._publishers[registry.Channels.REAR_RIGHT_MOTOR_CMD] = pubsub.Publisher(
-            self._node_id, registry.Channels.REAR_RIGHT_MOTOR_CMD
+        self._publishers[registry.Channels.MOTOR_CMD_REAR_RIGHT] = pubsub.Publisher(
+            self._node_id, registry.Channels.MOTOR_CMD_REAR_RIGHT
         )
         self._publishers[registry.Channels.STOP_MOTORS] = pubsub.Publisher(
             self._node_id, registry.Channels.STOP_MOTORS

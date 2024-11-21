@@ -1,9 +1,7 @@
-import asyncio
 import collections
 import math
 import os
 import sys
-import time
 from typing import DefaultDict
 
 from odrive import enums as odrive_enums  # type: ignore[import-untyped]
@@ -51,22 +49,21 @@ class MotorControlNode(base_node.BaseNode):
         )
         self.add_subscribers(
             {
-                registry.Channels.FRONT_LEFT_MOTOR_CMD: self._send_motor_cmd,
-                registry.Channels.FRONT_RIGHT_MOTOR_CMD: self._send_motor_cmd,
-                registry.Channels.REAR_LEFT_MOTOR_CMD: self._send_motor_cmd,
-                registry.Channels.REAR_RIGHT_MOTOR_CMD: self._send_motor_cmd,
+                registry.Channels.MOTOR_CMD_FRONT_LEFT: self._send_motor_cmd,
+                registry.Channels.MOTOR_CMD_FRONT_RIGHT: self._send_motor_cmd,
+                registry.Channels.MOTOR_CMD_REAR_LEFT: self._send_motor_cmd,
+                registry.Channels.MOTOR_CMD_REAR_RIGHT: self._send_motor_cmd,
                 registry.Channels.STOP_MOTORS: self._activate_e_stop,
             }
         )
         self.add_publishers(
-            registry.Channels.FRONT_LEFT_MOTOR_VELOCITY,
-            registry.Channels.FRONT_RIGHT_MOTOR_VELOCITY,
-            registry.Channels.REAR_LEFT_MOTOR_VELOCITY,
-            registry.Channels.REAR_RIGHT_MOTOR_VELOCITY,
+            registry.Channels.MOTOR_VELOCITY_FRONT_LEFT,
+            registry.Channels.MOTOR_VELOCITY_FRONT_RIGHT,
+            registry.Channels.MOTOR_VELOCITY_REAR_LEFT,
+            registry.Channels.MOTOR_VELOCITY_REAR_RIGHT,
         )
-        self.add_tasks(
-            self._initialize_motors, self._can_bus.listen, self._publish_velocity
-        )
+        self.add_tasks(self._initialize_motors, self._can_bus.listen)
+        self.add_looped_tasks({self._publish_velocity: _VEL_PUB_RATE})
 
     async def shutdown_hook(self) -> None:
         # Sends a zero velocity to stop the motors.
@@ -86,22 +83,14 @@ class MotorControlNode(base_node.BaseNode):
                 motor.node_id, odrive_enums.AxisState.CLOSED_LOOP_CONTROL
             )
 
-    async def _publish_velocity(self) -> None:
-        total_time = 1.0 / _VEL_PUB_RATE
-        while True:
-            start = time.perf_counter()
-            for motor in self._motor_configs:
-                channel = registry.motor_velocity_channel(motor)
-                estimated_velocity = self._motor_velocity[motor.node_id]
-                msg = ipc_messages.MotorVelocityMessage(
-                    motor=motor, estimated_velocity=estimated_velocity
-                )
-                self.publish(channel, msg)
-
-            exec_time = time.perf_counter() - start
-            sleep_time = total_time - exec_time
-
-            await asyncio.sleep(sleep_time)
+    def _publish_velocity(self) -> None:
+        for motor in self._motor_configs:
+            channel = registry.motor_velocity_channel(motor)
+            estimated_velocity = self._motor_velocity[motor.node_id]
+            msg = ipc_messages.MotorVelocityMessage(
+                motor=motor, estimated_velocity=estimated_velocity
+            )
+            self.publish(channel, msg)
 
     async def _set_axis_state(
         self, node_id: int, axis_state: odrive_enums.AxisState

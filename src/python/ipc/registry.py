@@ -9,33 +9,35 @@ from ipc import core, messages
 
 
 class Channels(SimpleNamespace):
-    """A registry of all channels available to use."""
+    """A registry of all IPC channels available to use."""
 
     BODY_KINEMATICS = core.ChannelSpec[messages.VehicleKinematicsMessage](
         channel="vehicle_dynamics"
     )
-    FRONT_LEFT_MOTOR_CMD = core.ChannelSpec[messages.MotorCommandMessage](
+    ESF = core.ChannelSpec[messages.ESFMessage](channel="esf")
+    GNSS = core.ChannelSpec[messages.GNSSMessage](channel="gnss")
+    MOTOR_CMD_FRONT_LEFT = core.ChannelSpec[messages.MotorCommandMessage](
         channel="front_left_motor_command"
     )
-    FRONT_RIGHT_MOTOR_CMD = core.ChannelSpec[messages.MotorCommandMessage](
+    MOTOR_CMD_FRONT_RIGHT = core.ChannelSpec[messages.MotorCommandMessage](
         channel="front_right_motor_command"
     )
-    REAR_LEFT_MOTOR_CMD = core.ChannelSpec[messages.MotorCommandMessage](
+    MOTOR_CMD_REAR_LEFT = core.ChannelSpec[messages.MotorCommandMessage](
         channel="rear_left_motor_command"
     )
-    REAR_RIGHT_MOTOR_CMD = core.ChannelSpec[messages.MotorCommandMessage](
+    MOTOR_CMD_REAR_RIGHT = core.ChannelSpec[messages.MotorCommandMessage](
         channel="rear_right_motor_command"
     )
-    FRONT_LEFT_MOTOR_VELOCITY = core.ChannelSpec[messages.MotorVelocityMessage](
+    MOTOR_VELOCITY_FRONT_LEFT = core.ChannelSpec[messages.MotorVelocityMessage](
         channel="front_left_motor_velocity"
     )
-    FRONT_RIGHT_MOTOR_VELOCITY = core.ChannelSpec[messages.MotorVelocityMessage](
+    MOTOR_VELOCITY_FRONT_RIGHT = core.ChannelSpec[messages.MotorVelocityMessage](
         channel="front_right_motor_velocity"
     )
-    REAR_LEFT_MOTOR_VELOCITY = core.ChannelSpec[messages.MotorVelocityMessage](
+    MOTOR_VELOCITY_REAR_LEFT = core.ChannelSpec[messages.MotorVelocityMessage](
         channel="rear_left_motor_velocity"
     )
-    REAR_RIGHT_MOTOR_VELOCITY = core.ChannelSpec[messages.MotorVelocityMessage](
+    MOTOR_VELOCITY_REAR_RIGHT = core.ChannelSpec[messages.MotorVelocityMessage](
         channel="rear_right_motor_velocity"
     )
     STOP_MOTORS = core.ChannelSpec[messages.StopMotorsMessage](channel="stop_motors")
@@ -48,6 +50,7 @@ class Requests(SimpleNamespace):
 class NodeIDs(SimpleNamespace):
     """A registry of Node IDs available to use."""
 
+    LOCALIZER = core.NodeID(name="localizer")
     MOTOR_CONTROL = core.NodeID(name="motor_control")
     NAVIGATION = core.NodeID(name="navigation")
     RC = core.NodeID(name="rc")
@@ -58,13 +61,13 @@ class NodeIDs(SimpleNamespace):
 def motor_command_channel(motor: robot_config.Motor) -> core.ChannelSpec:
     """Motor command channel from the config."""
     if motor.location == robot_config.DrivetrainLocation.FRONT_LEFT:
-        return Channels.FRONT_LEFT_MOTOR_CMD
+        return Channels.MOTOR_CMD_FRONT_LEFT
     elif motor.location == robot_config.DrivetrainLocation.FRONT_RIGHT:
-        return Channels.FRONT_RIGHT_MOTOR_CMD
+        return Channels.MOTOR_CMD_FRONT_RIGHT
     elif motor.location == robot_config.DrivetrainLocation.REAR_LEFT:
-        return Channels.REAR_LEFT_MOTOR_CMD
+        return Channels.MOTOR_CMD_REAR_LEFT
     elif motor.location == robot_config.DrivetrainLocation.REAR_RIGHT:
-        return Channels.REAR_RIGHT_MOTOR_CMD
+        return Channels.MOTOR_CMD_REAR_RIGHT
     else:
         raise ValueError("unknown channel")
 
@@ -72,12 +75,12 @@ def motor_command_channel(motor: robot_config.Motor) -> core.ChannelSpec:
 def motor_velocity_channel(motor: robot_config.Motor) -> core.ChannelSpec:
     """Motor velocity channel from the config."""
     if motor.location == robot_config.DrivetrainLocation.FRONT_LEFT:
-        return Channels.FRONT_LEFT_MOTOR_VELOCITY
+        return Channels.MOTOR_VELOCITY_FRONT_LEFT
     elif motor.location == robot_config.DrivetrainLocation.FRONT_RIGHT:
-        return Channels.FRONT_RIGHT_MOTOR_VELOCITY
+        return Channels.MOTOR_VELOCITY_FRONT_RIGHT
     elif motor.location == robot_config.DrivetrainLocation.REAR_LEFT:
-        return Channels.REAR_LEFT_MOTOR_VELOCITY
+        return Channels.MOTOR_VELOCITY_REAR_LEFT
     elif motor.location == robot_config.DrivetrainLocation.REAR_RIGHT:
-        return Channels.REAR_RIGHT_MOTOR_VELOCITY
+        return Channels.MOTOR_VELOCITY_REAR_RIGHT
     else:
         raise ValueError("unknown channel")

@@ -6,8 +6,7 @@ from typing import Type, TypeVar, Union
 
 import numpy as np
 
-from geometry import frames
-from python.geometry import math_helpers
+from geometry import frames, math_helpers
 
 BaseAngleTypeT = TypeVar("BaseAngleTypeT", bound="BaseAngleType")
 BaseVectorTypeT = TypeVar("BaseVectorTypeT", bound="BaseVectorType")
@@ -38,6 +37,7 @@ class BaseAngleType:
         self: BaseAngleTypeT, rotation: Rotation, *, intrinsic: bool = True
     ) -> BaseAngleTypeT:
         """A rotation of the orientation."""
+        _raise_if_frames_different(self, rotation)
         if intrinsic:
             rotated_matrix = math_helpers.dot(self.as_matrix(), rotation.as_matrix())
         else:
@@ -72,6 +72,7 @@ class BaseVectorType:
 
     def rotated(self: BaseVectorTypeT, rotation: Rotation) -> BaseVectorTypeT:
         """Extrinsic rotation."""
+        _raise_if_frames_different(self, rotation)
         rot_vec = math_helpers.dot(rotation.as_matrix(), self.as_vector())
         return self.__class__(self.frame, *rot_vec)
 
@@ -79,6 +80,7 @@ class BaseVectorType:
         return self.__class__(self.frame, self.x, self.y, 0.0)
 
     def angle_to(self: BaseVectorTypeT, other: BaseVectorTypeT) -> float:
+        _raise_if_frames_different(self, other)
         self_vec = self.as_vector()
         other_vec = other.as_vector()
         dot_product = math_helpers.dot(self_vec, other_vec)
@@ -110,11 +112,13 @@ class BaseVectorType:
         return cls(frame, 0, 0, 1)
 
     def __add__(self: BaseVectorTypeT, other: BaseVectorTypeT) -> BaseVectorTypeT:
+        _raise_if_frames_different(self, other)
         return self.__class__(
             self.frame, self.x + other.x, self.y + other.y, self.z + other.z
         )
 
     def __sub__(self: BaseVectorTypeT, other: BaseVectorTypeT) -> BaseVectorTypeT:
+        _raise_if_frames_different(self, other)
         return self.__class__(
             self.frame, self.x - other.x, self.y - other.y, self.z - other.z
         )
@@ -156,7 +160,9 @@ class Rotation(BaseAngleType):
         return Orientation(self.frame, self.roll, self.pitch, self.yaw)
 
     def inverted(self) -> Rotation:
-        return Rotation.from_matrix(self.frame, math_helpers.transpose(self.as_matrix()))
+        return Rotation.from_matrix(
+            self.frame, math_helpers.transpose(self.as_matrix())
+        )
 
 
 class Position(BaseVectorType):
@@ -197,6 +203,13 @@ class AngularVelocity(BaseVectorType):
         return AngularVelocity(self.frame, 0, 0, self.z)
 
 
+class AngularAcceleration(BaseVectorType):
+    """Angular acceleration"""
+
+    def to_2d(self) -> AngularAcceleration:
+        return AngularAcceleration(self.frame, 0, 0, self.z)
+
+
 @dataclasses.dataclass
 class Pose:
     position: Position
@@ -221,16 +234,17 @@ class Twist:
     velocity: Velocity
     spin: AngularVelocity
 
-    def to_2d(self) -> Twist:
-        return Twist(self.velocity.to_2d(), self.spin.to_2d())
-
     def __post_init__(self) -> None:
         _raise_if_frames_different(self.velocity, self.spin)
 
     def __add__(self, other: Twist) -> Twist:
         return Twist(self.velocity + other.velocity, self.spin + other.spin)
 
+    def to_2d(self) -> Twist:
+        return Twist(self.velocity.to_2d(), self.spin.to_2d())
+
 
 def _raise_if_frames_different(*objs: Union[BaseAngleType, BaseVectorType]) -> None:
-    if len(set(obj.frame for obj in objs)) > 1:
-        raise ValueError(f"Expected only one frame for objects {objs=}")
+    obj_frames = set(obj.frame for obj in objs)
+    if len(obj_frames) > 1:
+        raise ValueError(f"Multiple frames found: {obj_frames=}")

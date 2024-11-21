@@ -5,6 +5,7 @@ from types import FrameType
 from typing import Callable, Dict, List, Optional
 
 import log
+import looped_function
 from ipc import core, pubsub, request
 
 
@@ -38,6 +39,14 @@ class BaseNode:
 
     def add_tasks(self, *functions: Callable) -> None:
         self._task_functions.extend(functions)
+
+    def add_looped_tasks(self, looped_funcs: Dict[Callable, float]) -> None:
+        for func, loop_rate in looped_funcs.items():
+            partial_func = functools.partial(
+                looped_function.loop_function, func, loop_rate
+            )
+            functools.update_wrapper(partial_func, looped_function.loop_function)
+            self.add_tasks(partial_func)
 
     def add_subscribers(self, channels: Dict[core.ChannelSpec, Callable]) -> None:
         self._subscriber_callbacks.update(channels)
