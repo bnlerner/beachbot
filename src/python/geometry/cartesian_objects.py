@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
-from typing import Type, TypeVar, Union
+from typing import Type, TypeVar, Union, overload
 
 import numpy as np
 
@@ -81,11 +81,10 @@ class BaseVectorType:
 
     def angle_to(self: BaseVectorTypeT, other: BaseVectorTypeT) -> float:
         _raise_if_frames_different(self, other)
-        self_vec = self.as_vector()
-        other_vec = other.as_vector()
+        self_vec = self.as_vector() / self.magnitude
+        other_vec = other.as_vector() / other.magnitude
         dot_product = math_helpers.dot(self_vec, other_vec)
-        cross_product = math_helpers.cross_3d_vector(self_vec, other_vec)
-        return math.acos(dot_product / cross_product)
+        return math.acos(dot_product)
 
     @classmethod
     def zero(
@@ -221,12 +220,31 @@ class Pose:
     def to_2d(self) -> Pose:
         return Pose(self.position.to_2d(), self.orientation.to_2d())
 
+    @overload
     def transform(self, other: Pose) -> Pose:
+        ...
+
+    @overload
+    def transform(self, other: Twist) -> Twist:
+        ...
+
+    def transform(self, other: Union[Pose, Twist]) -> Union[Pose, Twist]:
         """Transforms the other object into this Pose's frame."""
         rot_inv = self.orientation.as_rotation().inverted()
-        ori_in_self = rot_inv.rotated(other.orientation.as_rotation()).as_orientation()
-        pos_in_self = (other.position - self.position).rotated(rot_inv)
-        return Pose(pos_in_self, ori_in_self)
+        if isinstance(other, Pose):
+            ori_in_self = rot_inv.rotated(
+                other.orientation.as_rotation()
+            ).as_orientation()
+            pos_in_self = (other.position - self.position).rotated(rot_inv)
+            return Pose(pos_in_self, ori_in_self)
+        else:
+            rot_vel = other.velocity.rotated(rot_inv)
+            rot_ang_vel = other.spin.rotated(rot_inv)
+            return Twist(rot_vel, rot_ang_vel)
+
+    def update_frame(self, frame: frames.ReferenceFrame) -> None:
+        self.position.frame = frame
+        self.orientation.frame = frame
 
 
 @dataclasses.dataclass
@@ -242,6 +260,10 @@ class Twist:
 
     def to_2d(self) -> Twist:
         return Twist(self.velocity.to_2d(), self.spin.to_2d())
+
+    def update_frame(self, frame: frames.ReferenceFrame) -> None:
+        self.velocity.frame = frame
+        self.spin.frame = frame
 
 
 def _raise_if_frames_different(*objs: Union[BaseAngleType, BaseVectorType]) -> None:

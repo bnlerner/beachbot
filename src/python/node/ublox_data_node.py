@@ -11,6 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import geometry
 import log
+import system_info
 from drivers.gps import messages as gps_messages
 from ipc import messages as ipc_messages
 from ipc import registry
@@ -19,7 +20,6 @@ from node import base_node
 
 _TIMEOUT = 1.0
 _BAUDRATE = 38400
-_PORT = "/dev/ttyACM0"
 _PUB_FREQUENCY = 5
 
 
@@ -30,7 +30,9 @@ class UbloxDataNode(base_node.BaseNode):
 
     def __init__(self) -> None:
         super().__init__(registry.NodeIDs.UBLOX_DATA)
-        self._serial_conn = serial.Serial(_PORT, baudrate=_BAUDRATE, timeout=_TIMEOUT)
+        self._serial_conn = serial.Serial(
+            system_info.UBLOX_SERIAL, baudrate=_BAUDRATE, timeout=_TIMEOUT
+        )
         self._ublox_gps = UbloxGps(self._serial_conn)
 
         self._att_msg: Optional[gps_messages.UbloxATTMessage] = None

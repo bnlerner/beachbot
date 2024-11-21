@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 from typing import Callable, Dict, Optional
 
 import log
@@ -30,8 +31,9 @@ class _RequestExecutable:
             ret = await self._request_task
         except asyncio.CancelledError:
             cancelled = True
-        except BaseException as err:
-            log.error("Error while executing Request: " + err.__str__())
+        except BaseException:
+            err_str = traceback.format_exc()
+            log.error("Error while executing Request: " + err_str)
 
         self._request_task = None
         return core.RequestResponse(

@@ -45,14 +45,14 @@ class NavigationServer(base_node.BaseNode):
     async def _rcv_request(
         self, request: messages.NavigateRequest
     ) -> Literal["success", "fail"]:
-        self._request = request
-        self._path = self._nav_planner.gen_path(self._cur_pose, self._request.target)
+        self._path = self._nav_planner.gen_path(self._cur_pose, request.target)
         self._nav_progress_tracker = (
             navigation_progress_tracker.NavigationProgressTracker(self._path)
         )
         self._controller = nav_cascade_controller.NavigationCascadeController(
             self._robot_config
         )
+        self._request = request
         try:
             await self._wait_for_nav_finished()
         finally:
@@ -72,7 +72,10 @@ class NavigationServer(base_node.BaseNode):
             await asyncio.sleep(0.2)
 
     def _run_control_loop(self) -> None:
-        if self._request is None or self._nav_progress_tracker.is_finished():
+        if self._request is None:
+            return
+
+        if self._nav_progress_tracker.is_finished():
             return
 
         self._check_and_replan()

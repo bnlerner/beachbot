@@ -14,3 +14,4 @@ Flask==3.0.3
 flask[async]==3.0.3
 pyproj==3.7
 pygnssutils==1.1.7
+PyGeodesy==24.11.11

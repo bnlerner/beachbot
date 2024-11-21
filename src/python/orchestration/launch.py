@@ -158,11 +158,11 @@ class Orchestrator:
 def _gen_profile(profile: Literal["ui", "rc"]) -> List[NodeConfig]:
     if profile == "ui":
         return [
-            NodeConfig.localizer_node(),
-            NodeConfig.motor_control_node(),
-            NodeConfig.navigation_server(),
-            NodeConfig.ui_node(),
             NodeConfig.ublox_data_node(),
+            NodeConfig.ui_node(),
+            NodeConfig.motor_control_node(),
+            NodeConfig.localizer_node(),
+            NodeConfig.navigation_server(),
         ]
     elif profile == "rc":
         return [

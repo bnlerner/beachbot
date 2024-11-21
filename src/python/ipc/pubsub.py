@@ -35,7 +35,10 @@ class Publisher(Generic[BaseMessageT]):
         read by the subscriber.
         """
         if (cur_shm_id := _get_shm_id(self._shm)) is None:
-            raise IOError("Attempting to publish to a closed SHM file.")
+            log.error(
+                f"{self._node_id} is attempting to publish to SHM {self._shm.name} which is closed."
+            )
+            return
 
         _raise_if_shm_id_changed(self._shm_id, cur_shm_id)
         msg.origin = self._node_id
