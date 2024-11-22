@@ -24,7 +24,9 @@ class BaseAngleType:
     def as_matrix(self) -> np.ndarray:
         """Implied this is an extrinsic matrix."""
         return math_helpers.extrinsic_xyz_rotation_matrix(
-            self.roll, self.pitch, self.yaw
+            math_helpers.to_radian(self.roll),
+            math_helpers.to_radian(self.pitch),
+            math_helpers.to_radian(self.yaw),
         )
 
     @classmethod
@@ -58,7 +60,7 @@ class BaseVectorType:
     frame: frames.ReferenceFrame
     x: float
     y: float
-    z: float
+    z: float = 0.0
 
     def as_vector(self) -> np.ndarray:
         return np.array([self.x, self.y, self.z])
@@ -84,7 +86,8 @@ class BaseVectorType:
         self_vec = self.as_vector() / self.magnitude
         other_vec = other.as_vector() / other.magnitude
         dot_product = math_helpers.dot(self_vec, other_vec)
-        return math.acos(dot_product)
+        rad_angle = math.acos(dot_product)
+        return math_helpers.to_degrees(rad_angle)
 
     @classmethod
     def zero(
@@ -128,6 +131,10 @@ class BaseVectorType:
 
 
 class Orientation(BaseAngleType):
+    """An orientation specified in RPY with angles in degrees. Naively considers inputs
+    in degrees and doesnt double check you so be aware...
+    """
+
     @classmethod
     def from_intrinsic_rpy(
         cls, frame: frames.ReferenceFrame, roll: float, pitch: float, yaw: float

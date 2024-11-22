@@ -17,12 +17,22 @@ def sign(val: float) -> Literal[-1, 0, 1]:
         return 0
 
 
-# @nb.njit(nb.float64(nb.float64))
+@nb.njit(nb.float64(nb.float64))
+def to_radian(degrees: float) -> float:
+    return math.radians(degrees)
+
+
+@nb.njit(nb.float64(nb.float64))
+def to_degrees(radians: float) -> float:
+    return math.degrees(radians)
+
+
+@nb.njit(nb.float64(nb.float64))
 def wrap_degrees(angle: float) -> float:
     return ((angle + 180) % 360) - 180
 
 
-# @nb.njit(nb.float64(nb.float64))
+@nb.njit(nb.float64(nb.float64))
 def wrap_radian(angle: float) -> float:
     return (angle + math.pi) % (2 * math.pi) - math.pi  # Wraps to [-pi, pi]
 
@@ -69,7 +79,7 @@ def wrap_radian(angle: float) -> float:
 #     return True
 
 
-# @nb.njit(_F64_MATRIX(nb.float64, nb.float64, nb.float64))
+@nb.njit(_F64_MATRIX(nb.float64, nb.float64, nb.float64))
 def extrinsic_xyz_rotation_matrix(roll: float, pitch: float, yaw: float) -> np.ndarray:
     """A much faster version of a sst.Rotation.from_euler("xyz", angles).as_matrix()
     The input angles of [roll, pitch, yaw] match to a rotation matrix defined as
@@ -105,7 +115,7 @@ def extrinsic_xyz_rotation_matrix(roll: float, pitch: float, yaw: float) -> np.n
     return rot
 
 
-# @nb.njit(_F64_MATRIX(nb.float64, nb.float64, nb.float64))
+@nb.njit(_F64_MATRIX(nb.float64, nb.float64, nb.float64))
 def intrinsic_xyz_rotation_matrix(roll: float, pitch: float, yaw: float) -> np.ndarray:
     """A much faster version of an XYZ intrinsic rotation such as
     sst.Rotation.from_euler("zyx", angles).as_matrix(). The input angles of
@@ -206,7 +216,7 @@ def intrinsic_xyz_rotation_matrix(roll: float, pitch: float, yaw: float) -> np.n
 #     return transform
 
 
-# @nb.jit
+@nb.jit
 def dot(array_1: np.ndarray, array_2: np.ndarray) -> np.ndarray:
     """Numba version of dot product. Somewhat faster than the numpy version.
 
@@ -217,7 +227,7 @@ def dot(array_1: np.ndarray, array_2: np.ndarray) -> np.ndarray:
     return np.dot(array_1, array_2)
 
 
-# @nb.njit(_F64_MATRIX(_F64_MATRIX))
+@nb.njit(_F64_MATRIX(_F64_MATRIX))
 def transpose(matrix: np.ndarray) -> np.ndarray:
     """Numba version of transpose with numba. Somewhat faster than the numpy version.
 
@@ -334,7 +344,7 @@ def transpose(matrix: np.ndarray) -> np.ndarray:
 #     return np.abs(a - b) < 1.0e-15
 
 
-# @nb.njit(_F64_VECTOR(_F64_MATRIX))
+@nb.njit(_F64_VECTOR(_F64_MATRIX))
 def as_euler_xyz(rot: np.ndarray) -> np.ndarray:
     # Should never be in gimbal lock so no need to define.
     phi = wrap_radian(math.atan2(rot[2, 1], rot[2, 2]))
