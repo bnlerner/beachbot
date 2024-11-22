@@ -65,7 +65,10 @@ class NavigationCascadeController:
         velocity = geometry.Velocity.from_direction(
             geometry.UTM, direction, linear_speed
         )
-        return geometry.Twist(velocity, angular_vel)
+        utm_twist = geometry.Twist(velocity, angular_vel)
+        body_twist = self._cur_pose.transform(utm_twist)
+        body_twist.update_frame(geometry.BODY)
+        return body_twist
 
     def _calc_linear_speed(self, signed_turn_radius: float) -> float:
         abs_turn_radius = abs(signed_turn_radius)

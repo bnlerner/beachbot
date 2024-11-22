@@ -8,10 +8,11 @@ from ublox_gps import UbloxGps  # type: ignore[import-untyped]
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import system_info
 from drivers.gps import messages
 
 # Can also use SPI here - import spidev, but we dont because USB is easier to setup.
-port = serial.Serial("/dev/ttyACM0", baudrate=38400, timeout=1)
+port = serial.Serial(system_info.UBLOX_SERIAL, baudrate=38400, timeout=1)
 gps = UbloxGps(port)
 
 

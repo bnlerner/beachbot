@@ -23,6 +23,9 @@ class Wheel(pydantic.BaseModel):
     def circumference(self) -> float:
         return self.diameter * math.pi
 
+    def __hash__(self) -> int:
+        return hash((self.__class__, self.diameter, self.tread))
+
 
 # TODO: Move the location and motor into a driver primitives since its not really a
 # config.
@@ -83,6 +86,9 @@ class Drivetrain(pydantic.BaseModel):
     location: DrivetrainLocation
     wheel: Wheel
 
+    def __hash__(self) -> int:
+        return hash((self.__class__, self.location, self.wheel))
+
 
 class Beachbot(pydantic.BaseModel):
     """A beachbot robot, contains 4 independently driven wheels + motor drivetrain."""
@@ -125,3 +131,13 @@ class Beachbot(pydantic.BaseModel):
     @functools.lru_cache()
     def _get_filtered_drivetrain(self, location: DrivetrainLocation) -> Drivetrain:
         return filter(lambda x: x.location == location, self.drivetrain).__next__()
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.__class__,
+                *self.drivetrain,
+                self.inner_axle_wheel_distance,
+                self.wheel_base,
+            )
+        )

@@ -27,7 +27,9 @@ class UTMZone(pydantic.BaseModel):
         # 32700 + zone for southern hemisphere
         # Northern Hemisphere has latitude > 0
         hemisphere: Literal["north", "south"] = "north" if latitude >= 0 else "south"
-        epsg_code = f"326{zone_number}" if latitude >= 0 else f"327{zone_number}"
+        epsg_code = (
+            "EPSG:" + f"326{zone_number}" if latitude >= 0 else f"327{zone_number}"
+        )
 
         return UTMZone(
             zone_number=zone_number, hemisphere=hemisphere, epsg_code=epsg_code
