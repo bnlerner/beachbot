@@ -17,23 +17,12 @@ def sign(val: float) -> Literal[-1, 0, 1]:
         return 0
 
 
-@nb.njit(nb.float64(nb.float64))
-def to_radian(degrees: float) -> float:
-    return math.radians(degrees)
-
-
-@nb.njit(nb.float64(nb.float64))
-def to_degrees(radians: float) -> float:
-    return math.degrees(radians)
-
-
-@nb.njit(nb.float64(nb.float64))
 def wrap_degrees(angle: float) -> float:
     return ((angle + 180) % 360) - 180
 
 
 @nb.njit(nb.float64(nb.float64))
-def wrap_radian(angle: float) -> float:
+def _wrap_radian(angle: float) -> float:
     return (angle + math.pi) % (2 * math.pi) - math.pi  # Wraps to [-pi, pi]
 
 
@@ -58,12 +47,12 @@ def wrap_radian(angle: float) -> float:
 #     return result
 
 
-# @nb.njit(nb.float64(_F64_VECTOR))
-# def norm_3d_vector(vector: np.ndarray) -> float:
-#     """Equivalent to np.linalg.norm."""
-#     return math.sqrt(
-#         vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]
-#     )
+@nb.njit(nb.float64(_F64_VECTOR))
+def norm_3d_vector(vector: np.ndarray) -> float:
+    """Equivalent to np.linalg.norm."""
+    return math.sqrt(
+        vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]
+    )
 
 
 # @nb.njit((nb.int16[:, :], nb.int64[:], nb.int64[:], nb.int16))
@@ -216,23 +205,8 @@ def intrinsic_xyz_rotation_matrix(roll: float, pitch: float, yaw: float) -> np.n
 #     return transform
 
 
-@nb.jit
-def dot(array_1: np.ndarray, array_2: np.ndarray) -> np.ndarray:
-    """Numba version of dot product. Somewhat faster than the numpy version.
-
-    The explicit signature is not given since we want to take the dot products of
-    matrices and vectors, matrices and matrices, vectors and matrices etc.
-    Numba will compile the specific version when needed.
-    """
-    return np.dot(array_1, array_2)
-
-
-@nb.njit(_F64_MATRIX(_F64_MATRIX))
 def transpose(matrix: np.ndarray) -> np.ndarray:
-    """Numba version of transpose with numba. Somewhat faster than the numpy version.
-
-    Store the array in C order so that it can be used in numba functions.
-    """
+    """Transpose of a matrix."""
     return np.ascontiguousarray(matrix.T)
 
 
@@ -347,7 +321,18 @@ def transpose(matrix: np.ndarray) -> np.ndarray:
 @nb.njit(_F64_VECTOR(_F64_MATRIX))
 def as_euler_xyz(rot: np.ndarray) -> np.ndarray:
     # Should never be in gimbal lock so no need to define.
-    phi = wrap_radian(math.atan2(rot[2, 1], rot[2, 2]))
-    theta = wrap_radian(math.asin(-rot[2, 0]))
-    psi = wrap_radian(math.atan2(rot[1, 0], rot[0, 0]))
+    phi = _wrap_radian(math.atan2(rot[2, 1], rot[2, 2]))
+    theta = _wrap_radian(math.asin(-rot[2, 0]))
+    psi = _wrap_radian(math.atan2(rot[1, 0], rot[0, 0]))
     return np.array([phi, theta, psi])
+
+
+@nb.njit(_F64_VECTOR(nb.float64, nb.float64))
+def celestial_coordinates(altitude: float, azimuth: float) -> np.ndarray:
+    alt_cos = math.cos(altitude)
+
+    x = alt_cos * math.cos(azimuth)
+    y = alt_cos * math.sin(azimuth)
+    z = math.sin(altitude)
+
+    return np.array([x, y, z])

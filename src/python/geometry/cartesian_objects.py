@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import math
-from typing import Type, TypeVar, Union, overload
+from typing import Tuple, Type, TypeVar, Union, overload
 
 import numpy as np
 
@@ -10,6 +11,8 @@ from geometry import frames, math_helpers
 
 BaseAngleTypeT = TypeVar("BaseAngleTypeT", bound="BaseAngleType")
 BaseVectorTypeT = TypeVar("BaseVectorTypeT", bound="BaseVectorType")
+# Default ATOL, same as numpy.
+_DEFAULT_ATOL = 1e-8
 
 
 @dataclasses.dataclass
@@ -21,19 +24,23 @@ class BaseAngleType:
     pitch: float
     yaw: float
 
+    @property
+    def data(self) -> Tuple[float, float, float]:
+        return self.roll, self.pitch, self.yaw
+
     def as_matrix(self) -> np.ndarray:
         """Implied this is an extrinsic matrix."""
         return math_helpers.extrinsic_xyz_rotation_matrix(
-            math_helpers.to_radian(self.roll),
-            math_helpers.to_radian(self.pitch),
-            math_helpers.to_radian(self.yaw),
+            math.radians(self.roll), math.radians(self.pitch), math.radians(self.yaw)
         )
 
-    @classmethod
-    def from_matrix(
-        cls: Type[BaseAngleTypeT], frame: frames.ReferenceFrame, rot_matrix: np.ndarray
-    ) -> BaseAngleTypeT:
-        return cls(frame, *math_helpers.as_euler_xyz(rot_matrix))
+    def is_close(
+        self: BaseAngleTypeT, other: BaseAngleTypeT, *, atol: float = _DEFAULT_ATOL
+    ) -> bool:
+        _raise_if_frames_different(self, other)
+        return all(
+            abs(d2 - d1) < atol for d1, d2 in zip(self.data, other.data, strict=True)
+        )
 
     def rotated(
         self: BaseAngleTypeT, rotation: Rotation, *, intrinsic: bool = True
@@ -41,9 +48,9 @@ class BaseAngleType:
         """A rotation of the orientation."""
         _raise_if_frames_different(self, rotation)
         if intrinsic:
-            rotated_matrix = math_helpers.dot(self.as_matrix(), rotation.as_matrix())
+            rotated_matrix = np.dot(self.as_matrix(), rotation.as_matrix())
         else:
-            rotated_matrix = math_helpers.dot(rotation.as_matrix(), self.as_matrix())
+            rotated_matrix = np.dot(rotation.as_matrix(), self.as_matrix())
 
         return self.from_matrix(self.frame, rotated_matrix)
 
@@ -54,6 +61,18 @@ class BaseAngleType:
     def zero(cls: Type[BaseAngleTypeT], frame: frames.ReferenceFrame) -> BaseAngleTypeT:
         return cls(frame, 0, 0, 0)
 
+    @classmethod
+    def from_matrix(
+        cls: Type[BaseAngleTypeT], frame: frames.ReferenceFrame, rot_matrix: np.ndarray
+    ) -> BaseAngleTypeT:
+        array = math_helpers.as_euler_xyz(rot_matrix)
+        return cls(
+            frame,
+            math.degrees(array[0]),
+            math.degrees(array[1]),
+            math.degrees(array[2]),
+        )
+
 
 @dataclasses.dataclass
 class BaseVectorType:
@@ -62,32 +81,53 @@ class BaseVectorType:
     y: float
     z: float = 0.0
 
-    def as_vector(self) -> np.ndarray:
+    def as_array(self) -> np.ndarray:
         return np.array([self.x, self.y, self.z])
 
     def as_direction(self) -> Direction:
         return Direction(self.frame, self.x, self.y, self.z)
 
+    def as_position(self) -> Position:
+        return Position(self.frame, self.x, self.y, self.z)
+
     @property
     def magnitude(self) -> float:
         return (self.x**2 + self.y**2 + self.z**2) ** 0.5
 
+    @property
+    def data(self) -> Tuple[float, float, float]:
+        return self.x, self.y, self.z
+
     def rotated(self: BaseVectorTypeT, rotation: Rotation) -> BaseVectorTypeT:
         """Extrinsic rotation."""
         _raise_if_frames_different(self, rotation)
-        rot_vec = math_helpers.dot(rotation.as_matrix(), self.as_vector())
-        return self.__class__(self.frame, *rot_vec)
+        rot_vec = np.dot(rotation.as_matrix(), self.as_array())
+        return self.from_array(self.frame, rot_vec)
 
     def to_2d(self: BaseVectorTypeT) -> BaseVectorTypeT:
         return self.__class__(self.frame, self.x, self.y, 0.0)
 
     def angle_to(self: BaseVectorTypeT, other: BaseVectorTypeT) -> float:
         _raise_if_frames_different(self, other)
-        self_vec = self.as_vector() / self.magnitude
-        other_vec = other.as_vector() / other.magnitude
-        dot_product = math_helpers.dot(self_vec, other_vec)
+        self_vec = self.as_array() / self.magnitude
+        other_vec = other.as_array() / other.magnitude
+        dot_product = np.dot(self_vec, other_vec)
         rad_angle = math.acos(dot_product)
-        return math_helpers.to_degrees(rad_angle)
+        return math.degrees(rad_angle)
+
+    def is_close(
+        self: BaseVectorTypeT, other: BaseVectorTypeT, *, atol: float = _DEFAULT_ATOL
+    ) -> bool:
+        _raise_if_frames_different(self, other)
+        return all(
+            abs(d2 - d1) < atol for d1, d2 in zip(self.data, other.data, strict=True)
+        )
+
+    @classmethod
+    def from_array(
+        cls: Type[BaseVectorTypeT], frame: frames.ReferenceFrame, array: np.ndarray
+    ) -> BaseVectorTypeT:
+        return cls(frame, float(array[0]), float(array[1]), float(array[2]))
 
     @classmethod
     def zero(
@@ -188,7 +228,7 @@ class Velocity(BaseVectorType):
     def from_direction(
         cls, frame: frames.ReferenceFrame, direction: Direction, magnitude: float
     ) -> Velocity:
-        vel_vec = direction.as_vector() * magnitude
+        vel_vec = direction.as_array() * magnitude
         return Velocity(frame, *vel_vec)
 
 
@@ -197,7 +237,17 @@ class Direction(BaseVectorType):
 
     def __post_init__(self) -> None:
         """Ensures the direction is a unit vector."""
-        self.x, self.y, self.z = self.as_vector() / self.magnitude
+        self.x, self.y, self.z = self.as_array() / self.magnitude
+
+    @classmethod
+    def from_celestial(
+        cls, frame: frames.ReferenceFrame, altitude: float, azimuth: float
+    ) -> Direction:
+        """Takes the altitude and azimuth in degreses and constructs a direction."""
+        array = math_helpers.celestial_coordinates(
+            math.radians(altitude), math.radians(azimuth)
+        )
+        return cls.from_array(frame, array)
 
 
 class AngularVelocity(BaseVectorType):
@@ -207,6 +257,17 @@ class AngularVelocity(BaseVectorType):
 
     def to_2d(self) -> AngularVelocity:
         return AngularVelocity(self.frame, 0, 0, self.z)
+
+    def speed(self) -> float:
+        """Speed the angular velocity is rotating about the axis of rotation in deg/s."""
+        speed_rad = math_helpers.norm_3d_vector(self.as_array())
+        return math.degrees(speed_rad)
+
+    def axis(self) -> Direction:
+        """Axis of rotation."""
+        array = self.as_array()
+        unit_array = array / math_helpers.norm_3d_vector(array)
+        return Direction.from_array(self.frame, unit_array)
 
 
 class AngularAcceleration(BaseVectorType):
@@ -224,34 +285,67 @@ class Pose:
     def __post_init__(self) -> None:
         _raise_if_frames_different(self.position, self.orientation)
 
+    @functools.cached_property
+    def rotation(self) -> Rotation:
+        """Rotation of the associated orientation."""
+        return self.orientation.as_rotation()
+
+    @functools.cached_property
+    def inverted_rotation(self) -> Rotation:
+        """Inverse rotation of the associated orientation."""
+        return self.rotation.inverted()
+
     def to_2d(self) -> Pose:
         return Pose(self.position.to_2d(), self.orientation.to_2d())
 
     @overload
-    def transform(self, other: Pose) -> Pose:
+    def to_local(self, other: Pose) -> Pose:
         ...
 
     @overload
-    def transform(self, other: Twist) -> Twist:
+    def to_local(self, other: Position) -> Position:
         ...
 
-    def transform(self, other: Union[Pose, Twist]) -> Union[Pose, Twist]:
-        """Transforms the other object into this Pose's frame."""
-        rot_inv = self.orientation.as_rotation().inverted()
+    @overload
+    def to_local(self, other: Orientation) -> Orientation:
+        ...
+
+    def to_local(
+        self, other: Union[Pose, Position, Orientation]
+    ) -> Union[Pose, Position, Orientation]:
+        """Represents the other object into this Pose's own local frame."""
         if isinstance(other, Pose):
-            ori_in_self = rot_inv.rotated(
-                other.orientation.as_rotation()
-            ).as_orientation()
-            pos_in_self = (other.position - self.position).rotated(rot_inv)
-            return Pose(pos_in_self, ori_in_self)
+            return Pose(
+                self._pos_in_local(other.position),
+                self._ori_in_local(other.orientation),
+            )
+        elif isinstance(other, Position):
+            return self._pos_in_local(other)
+        elif isinstance(other, Orientation):
+            return self._ori_in_local(other)
         else:
-            rot_vel = other.velocity.rotated(rot_inv)
-            rot_ang_vel = other.spin.rotated(rot_inv)
-            return Twist(rot_vel, rot_ang_vel)
+            raise NotImplementedError(f"Transform not implemented for {type(other)}")
+
+    def _ori_in_local(self, orientation: Orientation) -> Orientation:
+        return self.inverted_rotation.rotated(
+            orientation.as_rotation()
+        ).as_orientation()
+
+    def _pos_in_local(self, position: Position) -> Position:
+        return (position - self.position).rotated(self.inverted_rotation)
+
+    def is_close(self, other: Pose, *, atol: float = _DEFAULT_ATOL) -> bool:
+        return self.position.is_close(
+            other.position, atol=atol
+        ) and self.orientation.is_close(other.orientation, atol=atol)
 
     def update_frame(self, frame: frames.ReferenceFrame) -> None:
         self.position.frame = frame
         self.orientation.frame = frame
+
+    @classmethod
+    def zero(cls, frame: frames.ReferenceFrame) -> Pose:
+        return Pose(Position.zero(frame), Orientation.zero(frame))
 
 
 @dataclasses.dataclass
@@ -271,6 +365,10 @@ class Twist:
     def update_frame(self, frame: frames.ReferenceFrame) -> None:
         self.velocity.frame = frame
         self.spin.frame = frame
+
+    @classmethod
+    def zero(cls, frame: frames.ReferenceFrame) -> Twist:
+        return Twist(Velocity.zero(frame), AngularVelocity.zero(frame))
 
 
 def _raise_if_frames_different(*objs: Union[BaseAngleType, BaseVectorType]) -> None:

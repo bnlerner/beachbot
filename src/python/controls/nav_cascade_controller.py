@@ -45,7 +45,8 @@ class NavigationCascadeController:
     def _target_twist(self) -> geometry.Twist:
         """Twist to target for the robot."""
         ref_twist = self._reference_twist()
-        target_in_body = self._cur_pose.transform(self._navpoint.pose_2d)
+        ref_twist.update_frame(geometry.BODY)
+        target_in_body = self._cur_pose.to_local(self._navpoint.pose_2d)
         corrective_twist = self._corrective_twist(
             target_in_body, geometry.sign(ref_twist.velocity.x)
         )
@@ -65,10 +66,9 @@ class NavigationCascadeController:
         velocity = geometry.Velocity.from_direction(
             geometry.UTM, direction, linear_speed
         )
-        utm_twist = geometry.Twist(velocity, angular_vel)
-        body_twist = self._cur_pose.transform(utm_twist)
-        body_twist.update_frame(geometry.BODY)
-        return body_twist
+        rot_vel = velocity.rotated(self._cur_pose.inverted_rotation)
+        rot_ang_vel = angular_vel.rotated(self._cur_pose.inverted_rotation)
+        return geometry.Twist(rot_vel, rot_ang_vel)
 
     def _calc_linear_speed(self, signed_turn_radius: float) -> float:
         abs_turn_radius = abs(signed_turn_radius)

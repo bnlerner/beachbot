@@ -9,6 +9,7 @@ BaseVectorType = cartesian_objects.BaseVectorType
 
 Position = cartesian_objects.Position
 Orientation = cartesian_objects.Orientation
+Direction = cartesian_objects.Direction
 Rotation = cartesian_objects.Rotation
 Velocity = cartesian_objects.Velocity
 Pose = cartesian_objects.Pose
