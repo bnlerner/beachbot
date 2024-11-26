@@ -4,6 +4,7 @@ import sys
 from typing import Dict, Optional, Tuple
 
 from flask import Flask, Response, jsonify, render_template, request
+from models import body_model
 
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -12,7 +13,7 @@ import log
 from ipc import core, messages, pubsub, registry, session
 from ipc import request as ipc_request
 from localization import gps_transformer, primitives
-from models import constants, motor_velocity_model
+from models import constants
 
 _INDEX_PATH = "index.html"
 _RC_ENDPOINT = "/joystick_input"
@@ -38,9 +39,7 @@ class UINode:
         self._gps_transformer = gps_transformer.GPSTransformer(_DEFAULT_UTM_ZONE)
 
         self._motor_configs = session.get_robot_motors()
-        self._rc_controller = motor_velocity_model.MotorVelocityModel(
-            session.get_robot_config()
-        )
+        self._rc_controller = body_model.BodyModel(session.get_robot_config())
         self._app = Flask(__name__)
         self._setup_routes()
         self._stop_robot: bool = True

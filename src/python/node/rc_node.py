@@ -5,7 +5,7 @@ from typing import Optional, Union
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from controls import rc_velocity_generator
+from controls import keyboard_rc_controller
 from ipc import messages, registry, session
 from pynput import keyboard
 
@@ -30,7 +30,7 @@ class RCRobotNode(base_node.BaseNode):
         )
 
         # Moves at 1.0 turns/s default for any RC command
-        self._rc_velocity_generator = rc_velocity_generator.RCVelocityGenerator(
+        self._rc_velocity_generator = keyboard_rc_controller.KeyboardRCController(
             session.get_robot_config()
         )
         self.add_publishers(

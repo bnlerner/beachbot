@@ -1,8 +1,6 @@
-from typing import Tuple
-
 import geometry
 from config import robot_config
-from models import motor_velocity_model
+from models import body_model
 
 from controls import pid_controller
 
@@ -18,7 +16,7 @@ class NavVelocityController:
     """
 
     def __init__(self, config: robot_config.Beachbot) -> None:
-        self._motor_model = motor_velocity_model.MotorVelocityModel(config)
+        self._body_model = body_model.BodyModel(config)
         self._linear_pi_control = pid_controller.PIDController(
             _LINEAR_P_GAIN, _LINEAR_I_GAIN
         )
@@ -26,9 +24,7 @@ class NavVelocityController:
             _ANGULAR_P_GAIN, _ANGULAR_I_GAIN
         )
 
-    def velocities(
-        self, target: geometry.Twist, measured: geometry.Twist
-    ) -> Tuple[float, float]:
+    def update(self, target: geometry.Twist, measured: geometry.Twist) -> None:
         """Takes the target and measured twist values to output the linear and angular
         velocity the robot needs to take to achieve them.
         """
@@ -37,7 +33,11 @@ class NavVelocityController:
         linear_speed = target.velocity.x + linear_vel_fb
         angular_speed = target.spin.z + angular_vel_fb
 
-        return linear_speed, angular_speed
+        self._body_model.update(linear_speed, angular_speed)
+
+    def velocity(self, motor: robot_config.Motor) -> float:
+        """Motor velocity in turns/s to achieve the control inputs."""
+        return self._body_model.velocity(motor)
 
     def _linear_velocity(
         self, target: geometry.Velocity, measured: geometry.Velocity

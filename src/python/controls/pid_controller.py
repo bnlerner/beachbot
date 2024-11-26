@@ -6,7 +6,7 @@ class PIDController:
     """A PID Controller. Handles controlling a simple system via PID control gains. Time
     interval is set by how often control signal is calculated and handled internally.
     """
-    
+
     def __init__(self, p_gain: float = 0, i_gain: float = 0, d_gain: float = 0):
         self._p_gain = p_gain
         self._i_gain = i_gain

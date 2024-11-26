@@ -2,14 +2,14 @@ import collections
 from typing import DefaultDict
 
 from config import robot_config
-from models import motor_velocity_model
+from models import body_model
 from pynput import keyboard
 
 _LINEAR_VELOCITY_DEFAULT = 2  # m/s
 _ANGULAR_VELOCITY_DEFAULT = 5  # deg/s
 
 
-class RCVelocityGenerator:
+class KeyboardRCController:
     """Generates a velocity for a motor config based on the input keyboard key
     presses.
     """
@@ -18,17 +18,17 @@ class RCVelocityGenerator:
         self._pressed_keys: DefaultDict[keyboard.Key, bool] = collections.defaultdict(
             lambda: False
         )
-        self._motor_model = motor_velocity_model.MotorVelocityModel(config)
+        self._body_model = body_model.BodyModel(config)
 
     def update(self, key: keyboard.Key, *, pressed: bool) -> None:
         self._pressed_keys[key] = pressed
         linear_vel = self._linear_velocity()
         angular_vel = self._angular_velocity()
-        self._motor_model.update(linear_vel, angular_vel)
+        self._body_model.update(linear_vel, angular_vel)
 
     def velocity(self, motor: robot_config.Motor) -> float:
         """The motor velocity in turns / s to achieve the current RC key presses."""
-        return self._motor_model.velocity(motor)
+        return self._body_model.velocity(motor)
 
     def _angular_velocity(self) -> float:
         """Angular velocity assuming that the velocity rotates about the robots body axis which would be with

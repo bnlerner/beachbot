@@ -225,11 +225,9 @@ class Velocity(BaseVectorType):
     """meters/second"""
 
     @classmethod
-    def from_direction(
-        cls, frame: frames.ReferenceFrame, direction: Direction, magnitude: float
-    ) -> Velocity:
+    def from_direction(cls, direction: Direction, magnitude: float) -> Velocity:
         vel_vec = direction.as_array() * magnitude
-        return Velocity(frame, *vel_vec)
+        return Velocity(direction.frame, *vel_vec)
 
 
 class Direction(BaseVectorType):

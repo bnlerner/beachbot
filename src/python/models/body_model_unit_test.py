@@ -4,8 +4,7 @@ import pytest
 from config import robot_config
 from ipc import session
 
-from models import constants
-from python.models import body_model
+from models import body_model, constants
 
 
 @pytest.fixture
@@ -20,9 +19,7 @@ def model() -> body_model.BodyModel:
     [(0.5, 0.0), (-0.5, 0.0), (0.0, 10.0), (0.0, -15.0), (0.5, 10.0)],
 )
 def test_tracking(
-    model: body_model.BodyModel,
-    linear_speed: float,
-    angular_speed: float,
+    model: body_model.BodyModel, linear_speed: float, angular_speed: float
 ) -> None:
     model.update(linear_speed, angular_speed)
     motors = session.get_robot_motors()
