@@ -4,13 +4,14 @@ import pytest
 from config import robot_config
 from ipc import session
 
-from models import constants, motor_velocity_model
+from models import constants
+from python.models import body_model
 
 
 @pytest.fixture
-def model() -> motor_velocity_model.MotorVelocityModel:
+def model() -> body_model.BodyModel:
     config = session.get_robot_config()
-    return motor_velocity_model.MotorVelocityModel(config)
+    return body_model.BodyModel(config)
 
 
 @pytest.mark.parametrize(
@@ -19,7 +20,7 @@ def model() -> motor_velocity_model.MotorVelocityModel:
     [(0.5, 0.0), (-0.5, 0.0), (0.0, 10.0), (0.0, -15.0), (0.5, 10.0)],
 )
 def test_tracking(
-    model: motor_velocity_model.MotorVelocityModel,
+    model: body_model.BodyModel,
     linear_speed: float,
     angular_speed: float,
 ) -> None:

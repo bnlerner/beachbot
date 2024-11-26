@@ -5,8 +5,10 @@ from config import robot_config
 from models import constants
 
 
-class MotorVelocityModel:
-    """Generates a motor velocity from an input target forward velocity and spin."""
+class BodyModel:
+    """Generates a model of the robot body, taking target linear and angular velocities
+    the body should achieve and outputs the motor velocity to do so.
+    """
 
     def __init__(self, config: robot_config.Beachbot) -> None:
         self._config = config
