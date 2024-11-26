@@ -37,13 +37,13 @@ class MotorVelocityModel:
         return self._convert_tread_velocity_to_motor_velocity(tread_speed)
 
     def _wheel_tangential_speed(self, angular_speed: float) -> float:
-        """The tangential speed a single wheel velocity must be to achieve the angular
-        speed. This value is side agnostic as it can be inverted depending on the wheel
-        location. Angular speed is in degrees / second.
+        """The tangential speed a single wheel velocity must rotate to achieve the
+        angular speed. This value is side agnostic as it can be inverted depending on
+        the wheel location. Angular speed is in degrees / second.
         """
-        half_wheel_base = self._config.wheel_base / 2
-        rad_s = angular_speed * math.pi / 180
-        return rad_s * half_wheel_base / constants.WHEEL_RESISTANCE_FACTOR
+        half_track_width = self._config.track_width / 2
+        rad_s = math.radians(angular_speed)
+        return (rad_s * half_track_width) / constants.WHEEL_RESISTANCE_FACTOR
 
     def _convert_tread_velocity_to_motor_velocity(self, tread_speed: float) -> float:
         """Tread velocity is the velocity of the wheel located at the contact point of
