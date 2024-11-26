@@ -2,10 +2,10 @@ from unittest import mock
 
 import geometry
 import pytest
+from config import robot_config
 from ipc import session
 
 from controls import nav_velocity_controller
-from config import robot_config
 
 _PERIOD = 1 / 50
 
@@ -61,7 +61,9 @@ def test_non_zero_twist(
 def test_increases_linearly(
     controller: nav_velocity_controller.NavVelocityController,
 ) -> None:
-    motor = robot_config.Motor(node_id=0, location=robot_config.DrivetrainLocation.FRONT_RIGHT)
+    motor = robot_config.Motor(
+        node_id=0, location=robot_config.DrivetrainLocation.FRONT_RIGHT
+    )
     prev_vel = 0.0
     for ix in range(500):
         t = ix * _PERIOD
