@@ -13,7 +13,7 @@ _Y_POS_GAIN = 22.9
 _THETA_ANGLE_GAIN = 22.9
 
 
-class NavigationCascadeController:
+class NavCascadeController:
     """A cascade controller to handle navigating along the path."""
 
     def __init__(self, config: robot_config.Beachbot):

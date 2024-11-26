@@ -9,7 +9,7 @@ _NAV_PATH_DISTANCE_TRACKING_TOL = 0.6
 _RAMP_WIDTH = 1.0
 
 
-class NavigationProgressTracker:
+class NavProgressTracker:
     def __init__(self, nav_path: primitives.NavigationPath):
         self._nav_path = nav_path
 

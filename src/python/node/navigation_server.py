@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import geometry
 from controls import nav_cascade_controller
 from ipc import messages, registry, session
-from planning import navigation_path_planner, navigation_progress_tracker
+from planning import nav_path_planner, nav_progress_tracker
 
 from node import base_node
 
@@ -22,11 +22,11 @@ class NavigationServer(base_node.BaseNode):
     def __init__(self) -> None:
         super().__init__(registry.NodeIDs.NAVIGATION)
         # No obstacles added for now.
-        self._nav_planner = navigation_path_planner.NavigationPathPlanner([])
+        self._nav_planner = nav_path_planner.NavPathPlanner([])
         self._request: Optional[messages.NavigateRequest] = None
         self._cur_pose: geometry.Pose
-        self._nav_progress_tracker: navigation_progress_tracker.NavigationProgressTracker
-        self._controller: nav_cascade_controller.NavigationCascadeController
+        self._nav_progress_tracker: nav_progress_tracker.NavProgressTracker
+        self._controller: nav_cascade_controller.NavCascadeController
         self._motors = session.get_robot_motors()
         self._robot_config = session.get_robot_config()
 
@@ -46,10 +46,8 @@ class NavigationServer(base_node.BaseNode):
         self, request: messages.NavigateRequest
     ) -> Literal["success", "fail"]:
         self._path = self._nav_planner.gen_path(self._cur_pose, request.target)
-        self._nav_progress_tracker = (
-            navigation_progress_tracker.NavigationProgressTracker(self._path)
-        )
-        self._controller = nav_cascade_controller.NavigationCascadeController(
+        self._nav_progress_tracker = nav_progress_tracker.NavProgressTracker(self._path)
+        self._controller = nav_cascade_controller.NavCascadeController(
             self._robot_config
         )
         self._request = request
@@ -68,7 +66,7 @@ class NavigationServer(base_node.BaseNode):
         self._cur_twist = msg.twist
 
     async def _wait_for_nav_finished(self) -> None:
-        while not self._nav_progress_tracker.is_finished():
+        while self._request is not None:
             await asyncio.sleep(0.2)
 
     def _run_control_loop(self) -> None:
@@ -76,6 +74,7 @@ class NavigationServer(base_node.BaseNode):
             return
 
         if self._nav_progress_tracker.is_finished():
+            self._request = None
             return
 
         self._check_and_replan()

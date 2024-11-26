@@ -13,7 +13,7 @@ _STEP_SIZE = 0.05
 _RUNWAY_SIZE = 0.0
 
 
-class NavigationPathPlanner:
+class NavPathPlanner:
     def __init__(self, obstacles: List[primitives.Obstacle]):
         if len(obstacles) != 0:
             raise ValueError("Obstacles not supported at the moment.")
