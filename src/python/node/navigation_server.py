@@ -12,6 +12,8 @@ from ipc import messages, registry, session
 from planning import nav_path_planner, nav_progress_tracker
 
 from node import base_node
+from typing_helpers import req
+import log
 
 _CONTROL_RATE = 50  # In Hz
 
@@ -24,7 +26,7 @@ class NavigationServer(base_node.BaseNode):
         # No obstacles added for now.
         self._nav_planner = nav_path_planner.NavPathPlanner([])
         self._request: Optional[messages.NavigateRequest] = None
-        self._cur_pose: geometry.Pose
+        self._cur_pose: Optional[geometry.Pose] = None
         self._nav_progress_tracker: nav_progress_tracker.NavProgressTracker
         self._controller: nav_cascade_controller.NavCascadeController
         self._motors = session.get_robot_motors()
@@ -45,7 +47,8 @@ class NavigationServer(base_node.BaseNode):
     async def _rcv_request(
         self, request: messages.NavigateRequest
     ) -> Literal["success", "fail"]:
-        self._path = self._nav_planner.gen_path(self._cur_pose, request.target)
+        await self._wait_for_kinematics()
+        self._path = self._nav_planner.gen_path(req(self._cur_pose), request.target)
         self._nav_progress_tracker = nav_progress_tracker.NavProgressTracker(self._path)
         self._controller = nav_cascade_controller.NavCascadeController(
             self._robot_config
@@ -64,6 +67,11 @@ class NavigationServer(base_node.BaseNode):
     ) -> None:
         self._cur_pose = msg.pose
         self._cur_twist = msg.twist
+
+    async def _wait_for_kinematics(self) -> None:
+        while self._cur_pose is None:
+            log.info(f"No valid kinematic pose.")
+            await asyncio.sleep(2)
 
     async def _wait_for_nav_finished(self) -> None:
         while self._request is not None:
@@ -93,7 +101,7 @@ class NavigationServer(base_node.BaseNode):
         pass
 
     def _update_controller(self) -> None:
-        self._nav_progress_tracker.update(self._cur_pose)
+        self._nav_progress_tracker.update(req(self._cur_pose))
         navpoint = self._nav_progress_tracker.current_navpoint
         reference_speed = self._nav_progress_tracker.reference_speed_along_path()
         cur_pose = self._nav_progress_tracker.ref_pose_2d
