@@ -10,7 +10,6 @@ from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import log
-from config import robot_config
 from drivers.can import connection, enums
 from drivers.can import messages as can_messages
 from ipc import messages as ipc_messages
@@ -99,9 +98,8 @@ class MotorControlNode(base_node.BaseNode):
         await self._can_bus.send(axis_msg)
 
     async def _send_motor_cmd(self, msg: ipc_messages.MotorCommandMessage) -> None:
-        self._raise_if_axis_error(msg.motor)
         # Return early and wait until the motor enters a closed loop axis state prior to
-        # sending any commands to it.
+        # sending any commands to it. Unable to move if an error exists.
         if not self._ready_to_move(msg.motor.node_id):
             return None
 
@@ -118,6 +116,12 @@ class MotorControlNode(base_node.BaseNode):
     async def _update_from_heartbeat(self, msg: can_messages.HeartbeatMessage) -> None:
         self._motor_axis_state[msg.node_id] = msg.axis_state
         self._motor_axis_error[msg.node_id] = msg.axis_error
+        if msg.axis_error != _NO_ERROR:
+            error = self._motor_axis_error[msg.node_id]
+            motor = filter(
+                lambda x: x.node_id == msg.node_id, self._motor_configs
+            ).__next__()
+            log.error(f"Axis error: {error.name} on motor: {motor.location}")
 
     async def _set_motor_velocity(
         self, msg: can_messages.EncoderEstimatesMessage
@@ -125,17 +129,14 @@ class MotorControlNode(base_node.BaseNode):
         self._motor_velocity[msg.node_id] = msg.vel_estimate
 
     def _ready_to_move(self, node_id: int) -> bool:
-        return self._motor_axis_state[node_id] == _CLOSED_LOOP_STATE
+        return (
+            self._motor_axis_state[node_id] == _CLOSED_LOOP_STATE
+            and self._motor_axis_error[node_id] == _NO_ERROR
+        )
 
     async def _clear_errors(self, node_id: int) -> None:
         msg = can_messages.ClearErrorsCommand(node_id)
         await self._can_bus.send(msg)
-
-    def _raise_if_axis_error(self, motor: robot_config.Motor) -> None:
-        if self._motor_axis_error[motor.node_id] != _NO_ERROR:
-            error = self._motor_axis_error[motor.node_id]
-            log.error(f"Axis error: {error.name} on motor: {motor.location}")
-            raise SystemError(f"Axis error: {error.name} on motor: {motor.location}")
 
 
 if __name__ == "__main__":

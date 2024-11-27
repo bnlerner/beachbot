@@ -4,7 +4,6 @@ import sys
 from typing import Dict, Optional, Tuple
 
 from flask import Flask, Response, jsonify, render_template, request
-from models import body_model
 
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -13,7 +12,7 @@ import log
 from ipc import core, messages, pubsub, registry, session
 from ipc import request as ipc_request
 from localization import gps_transformer, primitives
-from models import constants
+from models import body_model, constants
 
 _INDEX_PATH = "index.html"
 _RC_ENDPOINT = "/joystick_input"

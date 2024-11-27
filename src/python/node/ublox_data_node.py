@@ -93,7 +93,7 @@ class UbloxDataNode(base_node.BaseNode):
             self._pvt_msg = None
 
     def _gen_gnss_msg(self) -> Optional[ipc_messages.GNSSMessage]:
-        if self._pvt_msg:
+        if self._pvt_msg and _valid_gnss_msg(self._pvt_msg):
             ned_velocity = geometry.Velocity(
                 geometry.UTM,
                 self._pvt_msg.east_velocity,
@@ -135,6 +135,10 @@ class UbloxDataNode(base_node.BaseNode):
 
     async def shutdown_hook(self) -> None:
         self._serial_conn.close()
+
+
+def _valid_gnss_msg(msg: gps_messages.UbloxPVTMessage) -> bool:
+    return msg.latitude != 0 or msg.longitude != 0
 
 
 if __name__ == "__main__":
