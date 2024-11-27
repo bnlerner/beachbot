@@ -50,6 +50,9 @@ class NavProgressTracker:
                 self._cur_point_ix += 1
 
     def reference_speed_along_path(self) -> float:
+        """A signed reference speed along the path. Positive goes forward. Negative
+        goes backward.
+        """
         distance_remaining = self._distance_to_next_stopping_point(self.ref_pose_2d)
         # A linear ramp speed reference that decreases as we approach the stopping
         # point. Ends at a minimum value to avoid moving too slowly.

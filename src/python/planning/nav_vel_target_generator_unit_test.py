@@ -1,3 +1,5 @@
+import math
+
 import geometry
 import pytest
 from ipc import session
@@ -37,7 +39,10 @@ def test_straight_path(
     assert target_twist.spin.speed() == 0.0
 
 
-@pytest.mark.parametrize("signed_turn_radius, reference_speed", [(10, 1.0)])
+@pytest.mark.parametrize(
+    "signed_turn_radius, reference_speed",
+    [(10, 1.0), (4, 1), (4, -1), (100, -1), (-100, -1), (-4, 1), (-4, -1)],
+)
 def test_twist_reference(
     target_generator: nav_vel_target_generator.NavVelTargetGenerator,
     signed_turn_radius: float,
@@ -46,7 +51,18 @@ def test_twist_reference(
     target_twist = target_generator.gen_twist(
         signed_turn_radius, reference_speed, _ZERO_POSE
     )
-    print(target_twist)
+    config = session.get_robot_config()
+    turn_direction = geometry.sign(signed_turn_radius)
+    distance = abs(signed_turn_radius) + config.track_width / 2
+    expected_angular_speed = turn_direction * math.degrees(reference_speed / distance)
+
+    assert geometry.sign(target_twist.velocity.x) == geometry.sign(reference_speed)
+    assert target_twist.velocity.y == 0.0
+    assert geometry.sign(target_twist.spin.z) == turn_direction * geometry.sign(
+        reference_speed
+    )
+
+    assert math.isclose(expected_angular_speed, target_twist.spin.z, abs_tol=0.001)
 
 
 @pytest.mark.parametrize(
@@ -84,8 +100,6 @@ def test_twist_correction(
     elif y_sign == -1:
         assert target_twist.spin.z < 0
     elif (yaw_sign := geometry.sign(target_in_body.orientation.yaw)) == 1:
-        if target_twist.spin.z < 0:
-            print(target_in_body)
         assert target_twist.spin.z > 0
     elif yaw_sign == -1:
         assert target_twist.spin.z < 0

@@ -90,4 +90,5 @@ class NavVelTargetGenerator:
         abs_turn_radius = abs(signed_turn_radius)
         half_track_width = self._config.track_width / 2
         outside_track_dist = abs_turn_radius + half_track_width
-        return reference_speed / outside_track_dist * geometry.sign(signed_turn_radius)
+        sign = geometry.sign(signed_turn_radius)
+        return sign * math.degrees(reference_speed / outside_track_dist)
