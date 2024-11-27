@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import math
-from typing import Tuple, Type, TypeVar, Union, overload
+from typing import Literal, Tuple, Type, TypeVar, Union, overload
 
 import numpy as np
 
@@ -78,6 +78,15 @@ class BaseAngleType:
             math.degrees(array[1]),
             math.degrees(array[2]),
         )
+
+    def sin(self, attribute: Literal["roll", "pitch", "yaw"]) -> float:
+        return math.sin(math.radians(getattr(self, attribute)))
+
+    def cos(self, attribute: Literal["roll", "pitch", "yaw"]) -> float:
+        return math.cos(math.radians(getattr(self, attribute)))
+
+    def tan(self, attribute: Literal["roll", "pitch", "yaw"]) -> float:
+        return math.tan(math.radians(getattr(self, attribute)))
 
 
 @dataclasses.dataclass
@@ -165,6 +174,15 @@ class BaseVectorType:
     ) -> BaseVectorTypeT:
         return cls(frame, 0, 0, 1)
 
+    def sin(self, attribute: Literal["x", "y", "z"]) -> float:
+        return math.sin(math.radians(getattr(self, attribute)))
+
+    def cos(self, attribute: Literal["x", "y", "z"]) -> float:
+        return math.cos(math.radians(getattr(self, attribute)))
+
+    def tan(self, attribute: Literal["x", "y", "z"]) -> float:
+        return math.tan(math.radians(getattr(self, attribute)))
+
     def __add__(self: BaseVectorTypeT, other: BaseVectorTypeT) -> BaseVectorTypeT:
         _raise_if_frames_different(self, other)
         return self.__class__(
@@ -191,8 +209,11 @@ class Orientation(BaseAngleType):
     def from_intrinsic_rpy(
         cls, frame: frames.ReferenceFrame, roll: float, pitch: float, yaw: float
     ) -> Orientation:
-        rot_matrix = math_helpers.intrinsic_xyz_rotation_matrix(roll, pitch, yaw)
-        return Orientation(frame, *math_helpers.as_euler_xyz(rot_matrix))
+        """The instrinsic orienation considering RPY as degrees."""
+        rot_matrix = math_helpers.intrinsic_xyz_rotation_matrix(
+            math.radians(roll), math.radians(pitch), math.radians(yaw)
+        )
+        return Orientation.from_matrix(frame, rot_matrix)
 
     def as_rotation(self) -> Rotation:
         return Rotation(self.frame, self.roll, self.pitch, self.yaw)
@@ -214,6 +235,19 @@ class Orientation(BaseAngleType):
 
 
 class Rotation(BaseAngleType):
+    """A rotatation. RPY expressed in this are the degrees to rotate about the provided
+    frame.
+    """
+
+    @classmethod
+    def from_intrinsic_rpy(
+        cls, frame: frames.ReferenceFrame, roll: float, pitch: float, yaw: float
+    ) -> Rotation:
+        rot_matrix = math_helpers.intrinsic_xyz_rotation_matrix(
+            math.radians(roll), math.radians(pitch), math.radians(yaw)
+        )
+        return Rotation.from_matrix(frame, rot_matrix)
+
     def as_orientation(self) -> Orientation:
         return Orientation(self.frame, self.roll, self.pitch, self.yaw)
 

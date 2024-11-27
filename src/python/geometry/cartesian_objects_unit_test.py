@@ -48,11 +48,24 @@ def test_angular_velocity() -> None:
 
 
 @pytest.mark.parametrize("roll, pitch, yaw", [(0, 0, 0), (0, 0, 90), (15, -15, 15)])
-def test_rotation_matrix(roll: float, pitch: float, yaw: float) -> None:
+def test_extrinsic_rotation_matrix(roll: float, pitch: float, yaw: float) -> None:
     ori = geometry.Orientation(geometry.UTM, roll, pitch, yaw)
     rot = ori.as_rotation()
     rot_mat = rot.as_matrix()
     sst_rot = sst.Rotation.from_euler("xyz", [roll, pitch, yaw], degrees=True)
+    assert np.allclose(rot_mat, sst_rot.as_matrix())
+
+    rot_from_mat = geometry.Rotation.from_matrix(geometry.UTM, rot_mat)
+    assert rot_from_mat.is_close(rot)
+
+
+@pytest.mark.parametrize("roll, pitch, yaw", [(0, 0, 0), (20, 0, 20), (15, -15, 15)])
+def test_intrinsic_rotation_matrix(roll: float, pitch: float, yaw: float) -> None:
+    ori = geometry.Orientation.from_intrinsic_rpy(geometry.UTM, roll, pitch, yaw)
+    rot = ori.as_rotation()
+    rot_mat = rot.as_matrix()
+    sst_rot = sst.Rotation.from_euler("zyx", [roll, pitch, yaw], degrees=True)
+
     assert np.allclose(rot_mat, sst_rot.as_matrix())
 
     rot_from_mat = geometry.Rotation.from_matrix(geometry.UTM, rot_mat)
