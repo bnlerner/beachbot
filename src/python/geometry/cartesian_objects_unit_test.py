@@ -42,6 +42,11 @@ def test_direction() -> None:
     assert dir0.z == 0
 
 
+def test_angular_velocity() -> None:
+    spin = geometry.AngularVelocity(geometry.UTM, 2, 0, 1)
+    assert spin.speed() == (2**2 + 1**2) ** 0.5
+
+
 @pytest.mark.parametrize("roll, pitch, yaw", [(0, 0, 0), (0, 0, 90), (15, -15, 15)])
 def test_rotation_matrix(roll: float, pitch: float, yaw: float) -> None:
     ori = geometry.Orientation(geometry.UTM, roll, pitch, yaw)

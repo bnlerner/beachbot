@@ -24,6 +24,12 @@ class BaseAngleType:
     pitch: float
     yaw: float
 
+    def __post_init__(self) -> None:
+        # Ensures that values are floats.
+        self.roll = float(self.roll)
+        self.pitch = float(self.pitch)
+        self.yaw = float(self.yaw)
+
     @property
     def data(self) -> Tuple[float, float, float]:
         return self.roll, self.pitch, self.yaw
@@ -80,6 +86,12 @@ class BaseVectorType:
     x: float
     y: float
     z: float = 0.0
+
+    def __post_init__(self) -> None:
+        # Ensures that values are floats.
+        self.x = float(self.x)
+        self.y = float(self.y)
+        self.z = float(self.z)
 
     def as_array(self) -> np.ndarray:
         return np.array([self.x, self.y, self.z])
@@ -188,17 +200,17 @@ class Orientation(BaseAngleType):
     def x_axis(self) -> Direction:
         rot_mat = self.as_matrix()
         x_axis_vec = rot_mat[:, 0]
-        return Direction(self.frame, *x_axis_vec)
+        return Direction.from_array(self.frame, x_axis_vec)
 
     def y_axis(self) -> Direction:
         rot_mat = self.as_matrix()
         y_axis_vec = rot_mat[:, 1]
-        return Direction(self.frame, *y_axis_vec)
+        return Direction.from_array(self.frame, y_axis_vec)
 
     def z_axis(self) -> Direction:
         rot_mat = self.as_matrix()
         z_axis_vec = rot_mat[:, 2]
-        return Direction(self.frame, *z_axis_vec)
+        return Direction.from_array(self.frame, z_axis_vec)
 
 
 class Rotation(BaseAngleType):
@@ -227,7 +239,7 @@ class Velocity(BaseVectorType):
     @classmethod
     def from_direction(cls, direction: Direction, magnitude: float) -> Velocity:
         vel_vec = direction.as_array() * magnitude
-        return Velocity(direction.frame, *vel_vec)
+        return Velocity.from_array(direction.frame, vel_vec)
 
 
 class Direction(BaseVectorType):
@@ -257,9 +269,10 @@ class AngularVelocity(BaseVectorType):
         return AngularVelocity(self.frame, 0, 0, self.z)
 
     def speed(self) -> float:
-        """Speed the angular velocity is rotating about the axis of rotation in deg/s."""
-        speed_rad = math_helpers.norm_3d_vector(self.as_array())
-        return math.degrees(speed_rad)
+        """Speed the angular velocity is rotating about the axis of rotation in deg/s.
+        Speed is always positive.
+        """
+        return math_helpers.norm_3d_vector(self.as_array())
 
     def axis(self) -> Direction:
         """Axis of rotation."""

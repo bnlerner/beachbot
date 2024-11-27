@@ -59,7 +59,7 @@ class NavVelTargetGenerator:
         corrective_vel = geometry.Velocity.unit_x(geometry.BODY) * speed_error
         spin_speed = (
             _Y_POS_GAIN * target_in_body.position.y
-            + _THETA_ANGLE_GAIN * math.sin(target_in_body.orientation.yaw)
+            + _THETA_ANGLE_GAIN * math.sin(math.radians(target_in_body.orientation.yaw))
         )
         corrective_spin = geometry.AngularVelocity(
             geometry.BODY, 0, 0, spin_speed * driving_direction
