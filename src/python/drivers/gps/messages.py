@@ -76,6 +76,7 @@ class UbloxPVTMessage(pydantic.BaseModel):
     def is_valid(self) -> bool:
         return self.num_satellites > 0 and self.fix_type != 0
 
+
 class UbloxATTMessage(pydantic.BaseModel):
     """This message outputs the attitude solution as RPH angles."""
 

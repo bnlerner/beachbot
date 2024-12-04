@@ -41,7 +41,9 @@ async def main() -> None:
         "--path",
         type=str,
         required=True,
-        help="""The path to the specified parameter to read. \n For example reading the CAN cyclic message showing power is 'axis0.config.can.powers_msg_rate_ms'""",
+        help="""The path to the specified parameter to read. \n For example reading the
+        CAN cyclic message showing power is 'axis0.config.can.powers_msg_rate_ms'
+        """,
     )
     args = parser.parse_args()
 

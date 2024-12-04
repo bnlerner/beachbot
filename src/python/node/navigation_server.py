@@ -7,13 +7,13 @@ from typing import Literal, Optional
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import geometry
+import log
 from controls import nav_cascade_controller
 from ipc import messages, registry, session
 from planning import nav_path_planner, nav_progress_tracker
+from typing_helpers import req
 
 from node import base_node
-from typing_helpers import req
-import log
 
 _CONTROL_RATE = 50  # In Hz
 
@@ -70,7 +70,7 @@ class NavigationServer(base_node.BaseNode):
 
     async def _wait_for_kinematics(self) -> None:
         while self._cur_pose is None:
-            log.info(f"No valid kinematic pose.")
+            log.info("No valid kinematic pose.")
             await asyncio.sleep(2)
 
     async def _wait_for_nav_finished(self) -> None:
@@ -91,6 +91,7 @@ class NavigationServer(base_node.BaseNode):
 
     def _publish_motor_cmd_msgs(self) -> None:
         for motor in self._motors:
+            # TODO: how to get torque and velocity?
             velocity = self._controller.velocity(motor)
             msg = messages.MotorCommandMessage(motor=motor, velocity=velocity)
             channel = registry.motor_command_channel(motor)

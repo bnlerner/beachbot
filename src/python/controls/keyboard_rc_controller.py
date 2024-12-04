@@ -5,8 +5,8 @@ from config import robot_config
 from models import body_model
 from pynput import keyboard
 
-_LINEAR_VELOCITY_DEFAULT = 2  # m/s
-_ANGULAR_VELOCITY_DEFAULT = 5  # deg/s
+_LINEAR_VELOCITY_DEFAULT = 1  # m/s
+_ANGULAR_VELOCITY_DEFAULT = 10  # deg/s
 
 
 class KeyboardRCController:

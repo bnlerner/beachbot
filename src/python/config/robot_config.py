@@ -49,6 +49,11 @@ class Motor(pydantic.BaseModel):
 
     node_id: int
     location: DrivetrainLocation
+    # Torque constant in (Kt): Nm per Amp
+    torque_constant: float
+    # Continuous current is max amperage that can be provided constantly to the motor.
+    # Typically this is limited by wiring.
+    continous_current: float
 
     @functools.cached_property
     def side(self) -> Literal["left", "right"]:
@@ -71,8 +76,18 @@ class Motor(pydantic.BaseModel):
 
         location = DrivetrainLocation(file_path.stem.upper())
         node_id = motor_config_dict["axis0.config.can.node_id"]
+        torque_constant = motor_config_dict["axis0.config.motor.torque_constant"]
+        continuous_current = motor_config_dict["config.dc_max_positive_current"]
 
-        return Motor(node_id=node_id, location=location)
+        return Motor(
+            node_id=node_id,
+            location=location,
+            torque_constant=torque_constant,
+            continous_current=continuous_current,
+        )
+
+    def max_torque(self) -> float:
+        return self.torque_constant * self.continous_current
 
     def __hash__(self) -> int:
         return hash((self.__class__, self.node_id))

@@ -30,7 +30,7 @@ class RCRobotNode(base_node.BaseNode):
         )
 
         # Moves at 1.0 turns/s default for any RC command
-        self._rc_velocity_generator = keyboard_rc_controller.KeyboardRCController(
+        self._rc_cmd_generator = keyboard_rc_controller.KeyboardRCController(
             session.get_robot_config()
         )
         self.add_publishers(
@@ -44,15 +44,15 @@ class RCRobotNode(base_node.BaseNode):
 
     def _on_press(self, key: Optional[Union[keyboard.Key, keyboard.KeyCode]]) -> None:
         if isinstance(key, keyboard.Key):
-            self._rc_velocity_generator.update(key, pressed=True)
+            self._rc_cmd_generator.update(key, pressed=True)
 
     def _on_release(self, key: Optional[Union[keyboard.Key, keyboard.KeyCode]]) -> None:
         if isinstance(key, keyboard.Key):
-            self._rc_velocity_generator.update(key, pressed=False)
+            self._rc_cmd_generator.update(key, pressed=False)
 
     def _publish_motor_cmd_msgs(self) -> None:
         for motor in self._motor_configs:
-            velocity = self._rc_velocity_generator.velocity(motor)
+            velocity = self._rc_cmd_generator.velocity(motor)
             msg = messages.MotorCommandMessage(motor=motor, velocity=velocity)
             channel = registry.motor_command_channel(motor)
             self.publish(channel, msg)

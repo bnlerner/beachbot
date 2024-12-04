@@ -137,7 +137,6 @@ class UbloxDataNode(base_node.BaseNode):
         self._serial_conn.close()
 
 
-
 if __name__ == "__main__":
     node = UbloxDataNode()
     node.start()

@@ -20,10 +20,13 @@ class ESFMessage(core.BaseMessage):
 
 
 class MotorCommandMessage(core.BaseMessage):
-    """The target motor commands to use for control of each motor."""
+    """Commands a velocity setpoint for the motor, along with a feedforward torque in
+    Nm.
+    """
 
     motor: robot_config.Motor
     velocity: float
+    feedforward_torque: float = 0.0
 
 
 class MotorVelocityMessage(core.BaseMessage):

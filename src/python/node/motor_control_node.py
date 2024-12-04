@@ -38,7 +38,10 @@ class MotorControlNode(base_node.BaseNode):
         self._motor_axis_error: DefaultDict[
             int, odrive_enums.ODriveError
         ] = collections.defaultdict(lambda: odrive_enums.ODriveError.NONE)
-        self._motor_velocity: DefaultDict[int, float] = collections.defaultdict(
+        self._measured_velocity: DefaultDict[int, float] = collections.defaultdict(
+            lambda: math.nan
+        )
+        self._command_setpoint: DefaultDict[int, float] = collections.defaultdict(
             lambda: math.nan
         )
 
@@ -85,7 +88,7 @@ class MotorControlNode(base_node.BaseNode):
     def _publish_velocity(self) -> None:
         for motor in self._motor_configs:
             channel = registry.motor_velocity_channel(motor)
-            estimated_velocity = self._motor_velocity[motor.node_id]
+            estimated_velocity = self._measured_velocity[motor.node_id]
             msg = ipc_messages.MotorVelocityMessage(
                 motor=motor, estimated_velocity=estimated_velocity
             )
@@ -103,12 +106,18 @@ class MotorControlNode(base_node.BaseNode):
         if not self._ready_to_move(msg.motor.node_id):
             return None
 
-        vel_msg = can_messages.SetVelocityMessage(
-            msg.motor.node_id, velocity=msg.velocity, torque=0.0
-        )
-        await self._can_bus.send(vel_msg)
+        # Return early if the motor is already set to this command. Done to save some
+        # bus bandwidth.
+        if self._setpoint_equal(msg):
+            return None
 
-    async def _activate_e_stop(self, msg: ipc_messages.StopMotorsMessage) -> None:
+        self._command_setpoint[msg.motor.node_id] = msg.velocity
+        can_msg = can_messages.SetVelocityMessage(
+            msg.motor.node_id, velocity=msg.velocity, torque=msg.feedforward_torque
+        )
+        await self._can_bus.send(can_msg)
+
+    async def _activate_e_stop(self, _: ipc_messages.StopMotorsMessage) -> None:
         for motor in self._motor_configs:
             e_stop_msg = can_messages.EStop(motor.node_id)
             await self._can_bus.send(e_stop_msg)
@@ -126,13 +135,17 @@ class MotorControlNode(base_node.BaseNode):
     async def _set_motor_velocity(
         self, msg: can_messages.EncoderEstimatesMessage
     ) -> None:
-        self._motor_velocity[msg.node_id] = msg.vel_estimate
+        self._measured_velocity[msg.node_id] = msg.vel_estimate
 
     def _ready_to_move(self, node_id: int) -> bool:
         return (
             self._motor_axis_state[node_id] == _CLOSED_LOOP_STATE
             and self._motor_axis_error[node_id] == _NO_ERROR
         )
+
+    def _setpoint_equal(self, msg: ipc_messages.MotorCommandMessage) -> bool:
+        """Returns True if the setpoint for the motor already exists."""
+        return self._command_setpoint[msg.motor.node_id] == msg.velocity
 
     async def _clear_errors(self, node_id: int) -> None:
         msg = can_messages.ClearErrorsCommand(node_id)

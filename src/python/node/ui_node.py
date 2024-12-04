@@ -146,7 +146,7 @@ class UINode:
         if not isinstance(self._stop_robot, bool):
             raise ValueError(f"Unexpected stop robot type {self._stop_robot=}")
 
-        linear_velocity = constants.MAX_LINEAR_SPEED * y
+        linear_velocity = constants.MAX_LINEAR_SPEED * y * 0.5
         # Negative since positive spin is to the left.
         angular_velocity = constants.MAX_ANGULAR_SPEED * -x
         self._rc_controller.update(linear_velocity, angular_velocity)

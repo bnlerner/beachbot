@@ -62,7 +62,10 @@ def test_increases_linearly(
     controller: nav_velocity_controller.NavVelocityController,
 ) -> None:
     motor = robot_config.Motor(
-        node_id=0, location=robot_config.DrivetrainLocation.FRONT_RIGHT
+        node_id=0,
+        location=robot_config.DrivetrainLocation.FRONT_RIGHT,
+        torque_constant=0.083,
+        continous_current=40,
     )
     prev_vel = 0.0
     for ix in range(500):
