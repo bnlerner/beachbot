@@ -41,9 +41,6 @@ class MotorControlNode(base_node.BaseNode):
         self._measured_velocity: DefaultDict[int, float] = collections.defaultdict(
             lambda: math.nan
         )
-        self._command_setpoint: DefaultDict[int, float] = collections.defaultdict(
-            lambda: math.nan
-        )
 
         self._can_bus.register_callbacks(
             (can_messages.EncoderEstimatesMessage, self._set_motor_velocity),
@@ -106,12 +103,6 @@ class MotorControlNode(base_node.BaseNode):
         if not self._ready_to_move(msg.motor.node_id):
             return None
 
-        # Return early if the motor is already set to this command. Done to save some
-        # bus bandwidth.
-        if self._setpoint_equal(msg):
-            return None
-
-        self._command_setpoint[msg.motor.node_id] = msg.velocity
         can_msg = can_messages.SetVelocityMessage(
             msg.motor.node_id, velocity=msg.velocity, torque=msg.feedforward_torque
         )
@@ -142,10 +133,6 @@ class MotorControlNode(base_node.BaseNode):
             self._motor_axis_state[node_id] == _CLOSED_LOOP_STATE
             and self._motor_axis_error[node_id] == _NO_ERROR
         )
-
-    def _setpoint_equal(self, msg: ipc_messages.MotorCommandMessage) -> bool:
-        """Returns True if the setpoint for the motor already exists."""
-        return self._command_setpoint[msg.motor.node_id] == msg.velocity
 
     async def _clear_errors(self, node_id: int) -> None:
         msg = can_messages.ClearErrorsCommand(node_id)

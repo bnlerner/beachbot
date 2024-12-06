@@ -36,7 +36,7 @@
 	"axis0.config.can.temperature_msg_rate_ms": 0,
 	"axis0.config.can.bus_voltage_msg_rate_ms": 0,
 	"axis0.config.can.powers_msg_rate_ms": 0,
-	"axis0.config.enable_watchdog": false,
+	"axis0.config.enable_watchdog": true,
 	"axis0.config.load_encoder": 13,
 	"axis0.config.commutation_encoder": 13,
 	"config.enable_uart_a": false

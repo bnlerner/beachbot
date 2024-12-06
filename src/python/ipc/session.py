@@ -29,13 +29,13 @@ def get_robot_config() -> robot_config.Beachbot:
 
 def get_robot_motors(*, robot_name: Optional[str] = None) -> List[robot_config.Motor]:
     """Get all motor for this robot."""
-    robot_name = robot_name or _get_robot_name()
+    robot_name = robot_name or get_robot_name()
     return [
         get_motor(robot_name, location) for location in robot_config.DrivetrainLocation
     ]
 
 
-def _get_robot_name() -> str:
+def get_robot_name() -> str:
     """The configured robot."""
     # TODO: Make this change based on which robot is running.
     return "beachbot-1"
