@@ -11,7 +11,7 @@ import pydantic
 import system_info
 
 _NODE_FILE_PATH = system_info.get_root_project_directory() / "src/python/node/"
-_CMD = "python3"
+_CMD = "/opt/anaconda3/bin/python3"
 _OPTIONS = "-u"
 
 

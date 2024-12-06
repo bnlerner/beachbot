@@ -7,7 +7,7 @@ ruff==0.1.8
 sparkfun-ublox-gps==1.1.5
 pyserial==3.5
 spidev==3.6
-numpy==2.0.2
+numpy==1.26.4
 numba==0.60.0
 rsplan==1.0.10
 Flask==3.0.3
@@ -17,4 +17,4 @@ pygnssutils==1.1.7
 pytest==8.3.3
 pytest-asyncio==0.24.0
 PyGeodesy==24.11.11
-scipy==1.14.1
+scipy==1.13.1
