@@ -1,9 +1,13 @@
-from typing import List, Optional
+import json
+from typing import Any, Dict, List, Optional
 
 import system_info
 from config import robot_config
 
 _MOTOR_CONFIG_PATH = system_info.get_root_project_directory() / "env" / "motor_configs"
+_FLAT_ENDPOINT_PATH = (
+    system_info.get_root_project_directory() / "env/motor_configs/flat_endpoints.json"
+)
 
 
 def get_motor(
@@ -39,3 +43,21 @@ def get_robot_name() -> str:
     """The configured robot."""
     # TODO: Make this change based on which robot is running.
     return "beachbot-1"
+
+
+def get_motor_endpoint_data() -> Dict[str, Any]:
+    with open(_FLAT_ENDPOINT_PATH, "r") as fp:
+        endpoint_data = json.load(fp)
+
+    return endpoint_data
+
+
+def get_motor_config(motor: robot_config.Motor) -> Dict[str, Any]:
+    file_path = (
+        _MOTOR_CONFIG_PATH / get_robot_name() / f"{motor.location.value.lower()}.json"
+    )
+
+    with open(file_path, "r") as f:
+        motor_config_dict = json.load(f)
+
+    return motor_config_dict

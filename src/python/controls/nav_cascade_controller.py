@@ -20,6 +20,11 @@ class NavCascadeController:
         reference_speed: float,
         cur_twist: geometry.Twist,
     ) -> None:
+        # Resets the controller if we reach a cusp so that we dont carry the integrated
+        # control signal when switching directions.
+        if navpoint.is_cusp_point:
+            self._controller.reset()
+
         target_in_body = cur_pose.to_local(navpoint.pose_2d)
         target_twist = self._target_generator.gen_twist(
             navpoint.signed_turn_radius, reference_speed, target_in_body

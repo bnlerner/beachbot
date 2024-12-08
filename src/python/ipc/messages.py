@@ -27,6 +27,7 @@ class MotorCommandMessage(core.BaseMessage):
     motor: robot_config.Motor
     velocity: float
     feedforward_torque: float = 0.0
+    reset_integral: bool = False
 
 
 class MotorVelocityMessage(core.BaseMessage):

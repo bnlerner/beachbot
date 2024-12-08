@@ -18,8 +18,10 @@ from ipc import registry, session
 from node import base_node
 
 _CLOSED_LOOP_STATE = odrive_enums.AxisState.CLOSED_LOOP_CONTROL
+_WATCHDOG_EXPIRY = odrive_enums.ODriveError.WATCHDOG_TIMER_EXPIRED
 _NO_ERROR = odrive_enums.ODriveError.NONE
 _VEL_PUB_RATE = 50  # Roughly publish at 50 hz or 20 ms
+_INTEGRATOR_PATH = "axis0.controller.vel_integrator_torque"
 
 
 class MotorControlNode(base_node.BaseNode):
@@ -31,6 +33,7 @@ class MotorControlNode(base_node.BaseNode):
             enums.CANInterface.ODRIVE, enums.BusType.SOCKET_CAN
         )
         self._motor_configs = session.get_robot_motors()
+        self._endpoint_data = session.get_motor_endpoint_data()
 
         self._motor_axis_state: DefaultDict[
             int, odrive_enums.AxisState
@@ -103,6 +106,9 @@ class MotorControlNode(base_node.BaseNode):
         if not self._ready_to_move(msg.motor.node_id):
             return None
 
+        if msg.reset_integral:
+            await self._reset_motor_integral(msg.motor.node_id)
+
         can_msg = can_messages.SetVelocityMessage(
             msg.motor.node_id, velocity=msg.velocity, torque=msg.feedforward_torque
         )
@@ -129,10 +135,23 @@ class MotorControlNode(base_node.BaseNode):
         self._measured_velocity[msg.node_id] = msg.vel_estimate
 
     def _ready_to_move(self, node_id: int) -> bool:
-        return (
-            self._motor_axis_state[node_id] == _CLOSED_LOOP_STATE
-            and self._motor_axis_error[node_id] == _NO_ERROR
+        correct_axis_state = self._motor_axis_state[node_id] == _CLOSED_LOOP_STATE
+        no_serious_axis_error = self._motor_axis_error[node_id] in (
+            _NO_ERROR or _WATCHDOG_EXPIRY
         )
+        return correct_axis_state and no_serious_axis_error
+
+    async def _reset_motor_integral(self, node_id: int) -> None:
+        """Resets the motor integral term to zero. Useful since this can wind up
+        significantly during velocity control.
+        """
+        endpoint_id = self._endpoint_data["endpoints"][_INTEGRATOR_PATH]["id"]
+        endpoint_type = self._endpoint_data["endpoints"][_INTEGRATOR_PATH]["type"]
+
+        msg = can_messages.WriteParameterCommand(
+            node_id, endpoint_id=endpoint_id, value_type=endpoint_type, value=0.0
+        )
+        await self._can_bus.send(msg)
 
     async def _clear_errors(self, node_id: int) -> None:
         msg = can_messages.ClearErrorsCommand(node_id)

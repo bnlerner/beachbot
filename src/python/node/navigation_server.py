@@ -90,10 +90,14 @@ class NavigationServer(base_node.BaseNode):
         self._publish_motor_cmd_msgs()
 
     def _publish_motor_cmd_msgs(self) -> None:
+        # Reset each motor integral if we reach a cusp point.
+        reset_integral = self._nav_progress_tracker.current_navpoint.is_cusp_point
         for motor in self._motors:
             # TODO: how to get torque and velocity?
             velocity = self._controller.velocity(motor)
-            msg = messages.MotorCommandMessage(motor=motor, velocity=velocity)
+            msg = messages.MotorCommandMessage(
+                motor=motor, velocity=velocity, reset_integral=reset_integral
+            )
             channel = registry.motor_command_channel(motor)
             self.publish(channel, msg)
 

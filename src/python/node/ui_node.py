@@ -172,7 +172,10 @@ class UINode:
     def _publish_rc_cmd_msgs(self) -> None:
         for motor in self._motor_configs:
             velocity = 0.0 if self._stop_robot else self._rc_controller.velocity(motor)
-            msg = messages.MotorCommandMessage(motor=motor, velocity=velocity)
+            # Sets the integrator torque to zero during a stop event.
+            msg = messages.MotorCommandMessage(
+                motor=motor, velocity=velocity, reset_integral=self._stop_robot
+            )
             channel = registry.motor_command_channel(motor)
             self._publishers[channel].publish(msg)
 

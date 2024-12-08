@@ -39,6 +39,10 @@ class NavVelocityController:
         """Motor velocity in turns/s to achieve the control inputs."""
         return self._body_model.velocity(motor)
 
+    def reset(self) -> None:
+        self._linear_pi_control.reset()
+        self._angular_pi_control.reset()
+
     def _linear_velocity(
         self, target: geometry.Velocity, measured: geometry.Velocity
     ) -> float:

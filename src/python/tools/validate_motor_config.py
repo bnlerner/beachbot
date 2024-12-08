@@ -1,36 +1,26 @@
+import argparse
 import asyncio
-import json
 import os
 import sys
-from typing import Dict, Any
+
+import numpy as np
 
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import system_info
-from ipc import session
 from config import robot_config
 from drivers.can import connection, enums, messages
-
-_FLAT_ENDPOINT_PATH = (
-    system_info.get_root_project_directory() / "env/motor_configs/flat_endpoints.json"
-)
-_MOTOR_CONFIG_PATH = system_info.get_root_project_directory() / "env" / "motor_configs"
+from ipc import session
 
 
-def _motor_config(motor: robot_config.Motor) -> Dict[str, Any]:
-    file_path = _MOTOR_CONFIG_PATH / session.get_robot_name() / f"{motor.location.value.lower()}.json"
+async def _validate_motor_config(
+    bus: connection.CANSimple, motor: robot_config.Motor, should_fix_issues: bool
+) -> None:
+    endpoint_data = session.get_motor_endpoint_data()
 
-    with open(file_path, "r") as f:
-        motor_config_dict = json.load(f)
+    did_write_config = False
 
-    return motor_config_dict
-
-async def _validate_motor_config(bus: connection.CANSimple, motor: robot_config.Motor) -> None:
-    with open(_FLAT_ENDPOINT_PATH, "r") as fp:
-        endpoint_data = json.load(fp)
-
-    config = _motor_config(motor)
+    config = session.get_motor_config(motor)
     for path, expected_value in config.items():
         endpoint_id = endpoint_data["endpoints"][path]["id"]
         endpoint_type = endpoint_data["endpoints"][path]["type"]
@@ -39,19 +29,50 @@ async def _validate_motor_config(bus: connection.CANSimple, motor: robot_config.
 
         msg = messages.ReadParameterCommand(motor.node_id, endpoint_id=endpoint_id)
         await bus.send(msg)
-        response = await bus.await_parameter_response(motor.node_id, value_type=endpoint_type)
-        if response is None or response.value != expected_value:
-            print(f"{path} = {response.value if response else None}, expected: {expected_value}")
+        response = await bus.await_parameter_response(
+            motor.node_id, value_type=endpoint_type
+        )
+        if response is None or not np.isclose(response.value, expected_value):
+            print(
+                f"For motor: {motor.node_id}: {path} = {response.value if response else None}, expected: {expected_value}"
+            )
+            if should_fix_issues:
+                write_msg = messages.WriteParameterCommand(
+                    motor.node_id,
+                    endpoint_id=endpoint_id,
+                    value_type=endpoint_type,
+                    value=expected_value,
+                )
+                await bus.send(write_msg)
+                print(
+                    f"Writing config value for motor: {motor.node_id}: {path} = {expected_value}"
+                )
+                did_write_config = True
+
+    if did_write_config:
+        reboot_msg = messages.Reboot(motor.node_id, action=1)
+        await bus.send(reboot_msg)
+        print(f"Rebooting motor: {motor.node_id}")
 
 
 async def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Script to validate the configured ODrive over CAN bus and fix issues."
+    )
+    parser.add_argument(
+        "--fix-issues",
+        action="store_true",
+        help="Use this option to fix issues that are in the config",
+    )
+    args = parser.parse_args()
+
     print("opening CAN bus...")
     bus = connection.CANSimple(enums.CANInterface.ODRIVE, enums.BusType.SOCKET_CAN)
 
     try:
         motors = session.get_robot_motors()
         for motor in motors:
-            await _validate_motor_config(bus, motor)
+            await _validate_motor_config(bus, motor, args.fix_issues)
     finally:
         bus.shutdown()
 

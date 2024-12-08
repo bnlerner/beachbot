@@ -1,33 +1,31 @@
 import argparse
 import asyncio
-import json
 import os
 import sys
+from typing import List
 
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import system_info
 from drivers.can import connection, enums, messages
-
-_FLAT_ENDPOINT_PATH = (
-    system_info.get_root_project_directory() / "env/motor_configs/flat_endpoints.json"
-)
+from ipc import session
 
 
-async def _print_path(bus: connection.CANSimple, node_id: int, path: str) -> None:
-    with open(_FLAT_ENDPOINT_PATH, "r") as fp:
-        endpoint_data = json.load(fp)
+async def _print_path(
+    bus: connection.CANSimple, node_ids: List[int], path: str
+) -> None:
+    endpoint_data = session.get_motor_endpoint_data()
 
     endpoint_id = endpoint_data["endpoints"][path]["id"]
     endpoint_type = endpoint_data["endpoints"][path]["type"]
     if endpoint_type in ("function", "endpoint_ref"):
         raise ValueError(f"Unknown endpoint type {endpoint_type=}")
 
-    msg = messages.ReadParameterCommand(node_id, endpoint_id=endpoint_id)
-    await bus.send(msg)
-    response = await bus.await_parameter_response(node_id, value_type=endpoint_type)
-    print(f"{path} = {response.value if response else None}")
+    for node_id in node_ids:
+        msg = messages.ReadParameterCommand(node_id, endpoint_id=endpoint_id)
+        await bus.send(msg)
+        response = await bus.await_parameter_response(node_id, value_type=endpoint_type)
+        print(f"{node_id=}: {path} = {response.value if response else None}")
 
 
 async def main() -> None:
@@ -35,7 +33,7 @@ async def main() -> None:
         description="Script to read the configured ODrive over CAN bus."
     )
     parser.add_argument(
-        "--node-id", type=int, required=True, help="CAN Node ID of the ODrive."
+        "node_id", nargs="*", type=int, help="CAN Node IDs of the ODrive."
     )
     parser.add_argument(
         "--path",
