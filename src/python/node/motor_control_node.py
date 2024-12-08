@@ -2,7 +2,7 @@ import collections
 import math
 import os
 import sys
-from typing import DefaultDict
+from typing import DefaultDict, Optional
 
 from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 
@@ -21,6 +21,7 @@ _CLOSED_LOOP_STATE = odrive_enums.AxisState.CLOSED_LOOP_CONTROL
 _WATCHDOG_EXPIRY = odrive_enums.ODriveError.WATCHDOG_TIMER_EXPIRED
 _NO_ERROR = odrive_enums.ODriveError.NONE
 _VEL_PUB_RATE = 50  # Roughly publish at 50 hz or 20 ms
+_MOTOR_CMD_PUB_RATE = 50  # Roughly publish at 50 hz or 20 ms
 _INTEGRATOR_PATH = "axis0.controller.vel_integrator_torque"
 
 
@@ -41,6 +42,9 @@ class MotorControlNode(base_node.BaseNode):
         self._motor_axis_error: DefaultDict[
             int, odrive_enums.ODriveError
         ] = collections.defaultdict(lambda: odrive_enums.ODriveError.NONE)
+        self._motor_vel_cmd: DefaultDict[
+            int, Optional[ipc_messages.MotorCommandMessage]
+        ] = collections.defaultdict(lambda: None)
         self._measured_velocity: DefaultDict[int, float] = collections.defaultdict(
             lambda: math.nan
         )
@@ -51,10 +55,10 @@ class MotorControlNode(base_node.BaseNode):
         )
         self.add_subscribers(
             {
-                registry.Channels.MOTOR_CMD_FRONT_LEFT: self._send_motor_cmd,
-                registry.Channels.MOTOR_CMD_FRONT_RIGHT: self._send_motor_cmd,
-                registry.Channels.MOTOR_CMD_REAR_LEFT: self._send_motor_cmd,
-                registry.Channels.MOTOR_CMD_REAR_RIGHT: self._send_motor_cmd,
+                registry.Channels.MOTOR_CMD_FRONT_LEFT: self._set_motor_cmd,
+                registry.Channels.MOTOR_CMD_FRONT_RIGHT: self._set_motor_cmd,
+                registry.Channels.MOTOR_CMD_REAR_LEFT: self._set_motor_cmd,
+                registry.Channels.MOTOR_CMD_REAR_RIGHT: self._set_motor_cmd,
                 registry.Channels.STOP_MOTORS: self._activate_e_stop,
             }
         )
@@ -65,7 +69,12 @@ class MotorControlNode(base_node.BaseNode):
             registry.Channels.MOTOR_VELOCITY_REAR_RIGHT,
         )
         self.add_tasks(self._initialize_motors, self._can_bus.listen)
-        self.add_looped_tasks({self._publish_velocity: _VEL_PUB_RATE})
+        self.add_looped_tasks(
+            {
+                self._publish_velocity: _VEL_PUB_RATE,
+                self._publish_motor_cmds: _MOTOR_CMD_PUB_RATE,
+            }
+        )
 
     async def shutdown_hook(self) -> None:
         # Sends a zero velocity to stop the motors.
@@ -94,11 +103,27 @@ class MotorControlNode(base_node.BaseNode):
             )
             self.publish(channel, msg)
 
+    async def _publish_motor_cmds(self) -> None:
+        for motor in self._motor_configs:
+            if msg := self._motor_vel_cmd[motor.node_id]:
+                if not msg.expired():
+                    await self._send_motor_cmd(msg)
+                else:
+                    # Stop the motor if we havent received a motor command in some time
+                    # that the message has expired.
+                    no_vel_msg = ipc_messages.MotorCommandMessage(
+                        motor=motor, velocity=0.0
+                    )
+                    await self._send_motor_cmd(no_vel_msg)
+
     async def _set_axis_state(
         self, node_id: int, axis_state: odrive_enums.AxisState
     ) -> None:
         axis_msg = can_messages.SetAxisStateMessage(node_id, axis_state=axis_state)
         await self._can_bus.send(axis_msg)
+
+    def _set_motor_cmd(self, msg: ipc_messages.MotorCommandMessage) -> None:
+        self._motor_vel_cmd[msg.motor.node_id] = msg
 
     async def _send_motor_cmd(self, msg: ipc_messages.MotorCommandMessage) -> None:
         # Return early and wait until the motor enters a closed loop axis state prior to

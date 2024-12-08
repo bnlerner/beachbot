@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+import time
 from typing import Dict, Optional, Tuple
 
 from flask import Flask, Response, jsonify, render_template, request
@@ -45,6 +46,7 @@ class UINode:
         self._publishers: Dict[core.ChannelSpec, pubsub.Publisher] = {}
         self._request_clients: Dict[core.RequestSpec, ipc_request.RequestClient] = {}
         self._nav_task: Optional[asyncio.Task] = None
+        self._client_connections: Dict[str, float] = {}
 
         self._add_rc_cmd_publishers()
         self._add_request_clients(registry.Requests.NAVIGATE)
@@ -133,6 +135,13 @@ class UINode:
             self._publish_e_stop()
             log.info("Emergency Stop triggered!")
             return jsonify({"status": "E-Stop activated"}), 201
+
+        @self._app.route("/keep-alive", methods=["POST"])
+        def keep_alive() -> Tuple[Response, int]:
+            if client_ip := request.remote_addr:
+                self._client_connections[client_ip] = time.perf_counter()
+
+            return jsonify({"status": "alive"}), 201
 
     def _update_rc_controller(self, data: Dict[str, str]) -> None:
         # Positive X is turn right

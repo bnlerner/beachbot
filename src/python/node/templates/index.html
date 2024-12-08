@@ -87,10 +87,36 @@
             background-color: #c9302c; /* Darker red on hover */
         }
 
+        /* Indicates if connected to the backend */
+        #status-container {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-family: Arial, sans-serif;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        #status-light {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background-color: red; /* Default color (disconnected) */
+        }
+
+        #status-text {
+            font-size: 14px;
+        }
+
     </style>
 </head>
 <body>
     <h2>Beachbot Control Hub</h2>
+    <div id="status-container">
+        <span id="status-text">Connection:</span>
+        <div id="status-light"></div> <!-- Light indicator -->
+    </div>
     <div class="tab-container">
         <button class="tab-button" onclick="openTab(event, 'rc_tab')">RC</button>
         <button class="tab-button" onclick="openTab(event, 'autonomous_tab')">Autonomous</button>
@@ -107,6 +133,10 @@
             // Initialize the joystick using NippleJS
             const joystickContainer = document.getElementById('zone_joystick');
             const coordinatesDisplay = document.getElementById('coordinates');
+            const PUBLISH_INTERVAL = 100; // 100 ms = 10 Hz
+            let js_x = 0;
+            let js_y = 0;
+            let should_stop = false;
 
             const joystick = nipplejs.create({
                 zone: joystickContainer,
@@ -116,36 +146,45 @@
             // Listen for joystick move events and send data to Flask server
             joystick.on('move', (event, data) => {
                 if (data && data.vector) {
-                    const x = data.vector.x.toFixed(2);
-                    const y = data.vector.y.toFixed(2);
+                    js_x = data.vector.x.toFixed(2);
+                    js_y = data.vector.y.toFixed(2);
+                    should_stop = false;
 
                     // Update the coordinates display
-                    coordinatesDisplay.textContent = `Turn (positive is right): ${x}, Drive (positive is forward): ${y}`;
-
-                    // Send the joystick data to the server
-                    fetch('/joystick_input', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ x: x, y: y, stop: false})
-                    }).then(response => response.json())
-                      .then(data => console.log(data));
+                    coordinatesDisplay.textContent = `Turn (positive is right): ${js_x}, Drive (positive is forward): ${js_y}`;
                 }
             });
             // Send zeros on joystick release
             joystick.on('end', () => {
-                fetch('/joystick_input', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ x: 0.0, y: 0.0, stop: true})
-                }).then(response => response.json())
-                  .then(data => console.log("Joystick released:", data));
+                js_x = 0.0;
+                js_y = 0.0;
+                should_stop = true;
 
                 // Update the coordinates display
                 coordinatesDisplay.textContent = `Turn (positive is right): 0.00, Drive (positive is forward): 0.00`;
 
             });
+
+            // Send the current joystick command to the backend
+            const sendJoystickCommand = () => {
+                if (!isTabActive('rc_tab')) return; // Only send events if joystick tab is active
+                // Send the joystick data to the server
+                fetch('/joystick_input', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ x: js_x, y: js_y, stop: should_stop})
+                }).then(response => response.json())
+                .then(data => console.log(data))
+            };
+
+            // Periodically send joystick command messages
+            setInterval(sendJoystickCommand, PUBLISH_INTERVAL);
+
+            const isTabActive = (tabName) => {
+                return document.getElementById(tabName).classList.contains('active');
+            };
         </script>
     </div>
     <div id="autonomous_tab" class="tab-content">
@@ -230,6 +269,13 @@
         </script>
     </div>
     <script>
+        const KEEP_ALIVE_INTERVAL = 1000; // 1 seconds
+        const DISCONNECT_TIMEOUT = 2000; // 2 seconds
+
+        const statusLight = document.getElementById("status-light");
+        const statusText = document.getElementById("status-text");
+        let isConnected = false;
+
         // Function to open a tab and close others
         function openTab(event, tabName) {
             // Hide all tab content
@@ -265,6 +311,33 @@
         document.addEventListener("DOMContentLoaded", function() {
             document.querySelector('.tab-button').click();
         });
+
+        // Keep-alive mechanism
+        const sendKeepAlive = () => {
+            fetch('/keep-alive', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'alive' }),
+            })
+                .then(() => {
+                    isConnected = true;
+                    statusLight.style.backgroundColor = 'green'; // Update light to green
+                })
+                .catch(() => {
+                    isConnected = false;
+                    statusLight.style.backgroundColor = 'red'; // Update light to red
+                });
+        };
+
+        // Periodically send keep-alive messages
+        setInterval(sendKeepAlive, KEEP_ALIVE_INTERVAL);
+
+        // Check for disconnection if no keep-alive response
+        setInterval(() => {
+            if (!isConnected) {
+                statusLight.style.backgroundColor = 'red'; // Update light to red
+            }
+        }, DISCONNECT_TIMEOUT);
     </script>
 </body>
 </html>

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import time
 from typing import Any, Generic, Optional, TypeVar
 
 import pydantic
+from typing_helpers import req
 
 BaseMessageT = TypeVar("BaseMessageT")
 
@@ -24,6 +26,13 @@ class BaseMessage(pydantic.BaseModel):
 
     origin: Optional[NodeID] = None
     creation: Optional[float] = None
+
+    # Message lifetime of 0.5s by default
+    lifetime: float = 0.5
+
+    def expired(self) -> bool:
+        # Cannot expire if never created?
+        return req(self.creation) + self.lifetime < time.perf_counter()
 
 
 class ChannelSpec(pydantic.BaseModel, Generic[BaseMessageT]):
