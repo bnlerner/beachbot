@@ -2,146 +2,121 @@ import asyncio
 import os
 import sys
 import time
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 
-from flask import Flask, Response, jsonify, render_template, request
+import uvicorn
+from starlette import requests, responses, routing
+from starlette.staticfiles import StaticFiles
 
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import log
-from ipc import core, messages, pubsub, registry, session
-from ipc import request as ipc_request
+from ipc import core, messages, registry, session
 from localization import gps_transformer, primitives
 from models import body_model, constants
 
-_INDEX_PATH = "index.html"
-_RC_ENDPOINT = "/joystick_input"
-_NAVIGATE_ENDPOINT = "/navigate"
-_CERT_PATH = "env/auth/cert.pem"
-_KEY_PATH = "env/auth/key.pem"
+from node import base_node
+
 # UTM zone for Florida is zone number 17N.
 _DEFAULT_UTM_ZONE = primitives.UTMZone(
     zone_number=17, hemisphere="north", epsg_code="EPSG:32617"
 )
 
 
-class UINode:
+class UINode(base_node.BaseNode):
     """A node to host the UI of beachbot and allow interface to its servers and actions.
     Does not use the base node because flask has issues running using async.
     """
 
-    def __init__(self, host: str, port: int, *, debug: bool = False) -> None:
+    def __init__(self, port: int, *, debug: bool = False) -> None:
         self._node_id = registry.NodeIDs.UI
-        self._host = host
         self._port = port
         self._debug = debug
         self._gps_transformer = gps_transformer.GPSTransformer(_DEFAULT_UTM_ZONE)
-
         self._motor_configs = session.get_robot_motors()
         self._rc_controller = body_model.BodyModel(session.get_robot_config())
-        self._app = Flask(__name__)
-        self._setup_routes()
         self._stop_robot: bool = True
-        self._publishers: Dict[core.ChannelSpec, pubsub.Publisher] = {}
-        self._request_clients: Dict[core.RequestSpec, ipc_request.RequestClient] = {}
         self._nav_task: Optional[asyncio.Task] = None
         self._client_connections: Dict[str, float] = {}
+        self._http_server: Optional[uvicorn.Server] = None
 
-        self._add_rc_cmd_publishers()
-        self._add_request_clients(registry.Requests.NAVIGATE)
+        self.add_publishers(
+            registry.Channels.MOTOR_CMD_FRONT_LEFT,
+            registry.Channels.MOTOR_CMD_FRONT_RIGHT,
+            registry.Channels.MOTOR_CMD_REAR_LEFT,
+            registry.Channels.MOTOR_CMD_REAR_RIGHT,
+            registry.Channels.STOP_MOTORS,
+        )
+        self.add_request_clients(registry.Requests.NAVIGATE)
 
-    def start(self) -> None:
-        """Starts the UI node."""
-        try:
-            self._app.run(
-                host=self._host,
-                port=self._port,
-                debug=self._debug,
-                ssl_context=(_CERT_PATH, _KEY_PATH),
-            )
-        finally:
-            self._clean_up_tasks()
+        routes = [
+            routing.Route("/tab_switch", self._tab_switch, methods=["POST"]),
+            routing.Route("/joystick_input", self._rc_input, methods=["POST"]),
+            routing.Route("/navigate", self._navigate, methods=["POST", "DELETE"]),
+            routing.Route("/e-stop", self._e_stop, methods=["POST"]),
+            routing.Route("/keep-alive", self._keep_alive, methods=["POST"]),
+            # Mount the static files directory
+            routing.Mount(
+                "/", StaticFiles(directory="static", html=True), name="static"
+            ),
+        ]
+        self.set_http_server(self._port, routes)
 
-    def _add_rc_cmd_publishers(self) -> None:
-        self._publishers[registry.Channels.MOTOR_CMD_FRONT_LEFT] = pubsub.Publisher(
-            self._node_id, registry.Channels.MOTOR_CMD_FRONT_LEFT
-        )
-        self._publishers[registry.Channels.MOTOR_CMD_FRONT_RIGHT] = pubsub.Publisher(
-            self._node_id, registry.Channels.MOTOR_CMD_FRONT_RIGHT
-        )
-        self._publishers[registry.Channels.MOTOR_CMD_REAR_LEFT] = pubsub.Publisher(
-            self._node_id, registry.Channels.MOTOR_CMD_REAR_LEFT
-        )
-        self._publishers[registry.Channels.MOTOR_CMD_REAR_RIGHT] = pubsub.Publisher(
-            self._node_id, registry.Channels.MOTOR_CMD_REAR_RIGHT
-        )
-        self._publishers[registry.Channels.STOP_MOTORS] = pubsub.Publisher(
-            self._node_id, registry.Channels.STOP_MOTORS
-        )
-
-    def _add_request_clients(self, *request_specs: core.RequestSpec) -> None:
-        for request_spec in request_specs:
-            self._request_clients[request_spec] = ipc_request.RequestClient(
-                self._node_id, request_spec
+    async def _tab_switch(self, request: requests.Request) -> responses.Response:
+        if (data := await request.json()) is None:
+            return responses.Response(
+                {"status": "failed", "message": "Invalid JSON"}, 400
             )
 
-    def _setup_routes(self) -> None:
-        """Setups all routes"""
+        tab_name = self._get_tab_name(data)
+        log.info(f"Switched to tab: {tab_name}")
+        self._cancel_nav_if_on_wrong_tab(tab_name)
+        # You can perform additional actions here based on the tab change
+        return responses.Response({"status": "success", "tab": tab_name}, 200)
 
-        @self._app.route("/")
-        def index() -> str:
-            return render_template(_INDEX_PATH)
+    async def _rc_input(self, request: requests.Request) -> responses.Response:
+        # Capture joystick input from POST request to RC
+        if (data := await request.json()) is None:
+            return responses.Response(
+                {"status": "failed", "message": "Invalid JSON"}, 400
+            )
 
-        @self._app.route("/tab_switch", methods=["POST"])
-        def tab_switch() -> Tuple[Response, int]:
-            if (data := request.json) is None:
-                return jsonify({"status": "failed", "message": "Invalid JSON"}), 400
+        self._update_rc_controller(data)
+        self._publish_rc_cmd_msgs()
+        return responses.Response(
+            {"status": "success", "message": "Data received"}, 201
+        )
 
-            tab_name = self._get_tab_name(data)
-            log.info(f"Switched to tab: {tab_name}")
-            self._cancel_nav_if_on_wrong_tab(tab_name)
-            # You can perform additional actions here based on the tab change
-            return jsonify({"status": "success", "tab": tab_name}), 200
+    async def _navigate(self, request: requests.Request) -> responses.Response:
+        if request.method == "POST":
+            if (data := await request.json()) is None:
+                return responses.Response(
+                    {"status": "failed", "message": "Invalid JSON"}, 400
+                )
 
-        @self._app.route(_RC_ENDPOINT, methods=["POST"])
-        def rc_input() -> Tuple[Response, int]:
-            # Capture joystick input from POST request to RC
-            if (data := request.json) is None:
-                return jsonify({"status": "failed", "message": "Invalid JSON"}), 400
-
-            self._update_rc_controller(data)
-            self._publish_rc_cmd_msgs()
-            return jsonify({"status": "success", "message": "Data received"}), 201
-
-        @self._app.route(_NAVIGATE_ENDPOINT, methods=["POST", "DELETE"])
-        async def navigate() -> Tuple[Response, int]:
-            if request.method == "POST":
-                if (data := request.json) is None:
-                    return jsonify({"status": "failed", "message": "Invalid JSON"}), 400
-
-                return await self._exec_navigate_action(data)
-            elif request.method == "DELETE":
-                if self._nav_task is not None:
-                    self._nav_task.cancel()
-                    return jsonify({"status": "Navigation cancelled."}), 200
-                else:
-                    return jsonify({"status": "No active navigation request"}), 404
+            return await self._exec_navigate_action(data)
+        elif request.method == "DELETE":
+            if self._nav_task is not None:
+                self._nav_task.cancel()
+                return responses.Response({"status": "Navigation cancelled."}, 200)
             else:
-                raise ValueError(f"Unexpected request {request=}")
+                return responses.Response(
+                    {"status": "No active navigation request"}, 404
+                )
+        else:
+            raise ValueError(f"Unexpected request {request=}")
 
-        @self._app.route("/e-stop", methods=["POST"])
-        def e_stop() -> Tuple[Response, int]:
-            self._publish_e_stop()
-            log.info("Emergency Stop triggered!")
-            return jsonify({"status": "E-Stop activated"}), 201
+    def _e_stop(self, _: requests.Request) -> responses.Response:
+        self._publish_e_stop()
+        log.info("Emergency Stop triggered!")
+        return responses.Response({"status": "E-Stop activated"}, 201)
 
-        @self._app.route("/keep-alive", methods=["POST"])
-        def keep_alive() -> Tuple[Response, int]:
-            if client_ip := request.remote_addr:
-                self._client_connections[client_ip] = time.perf_counter()
+    def _keep_alive(self, request: requests.Request) -> responses.Response:
+        if client_ip := request.client:
+            self._client_connections[client_ip.host] = time.perf_counter()
 
-            return jsonify({"status": "alive"}), 201
+        return responses.Response({"status": "alive"}, 201)
 
     def _update_rc_controller(self, data: Dict[str, str]) -> None:
         # Positive X is turn right
@@ -163,7 +138,7 @@ class UINode:
     async def _navigate_to_target(self, nav_request: core.Request) -> Optional[str]:
         """Navigates to the target, returning a message if it does not sucdeed."""
         self._nav_task = asyncio.create_task(
-            self._send_request(registry.Requests.NAVIGATE, nav_request)
+            self.send_request(registry.Requests.NAVIGATE, nav_request)
         )
         response = await self._nav_task
 
@@ -186,45 +161,39 @@ class UINode:
                 motor=motor, velocity=velocity, reset_integral=self._stop_robot
             )
             channel = registry.motor_command_channel(motor)
-            self._publishers[channel].publish(msg)
+            self.publish(channel, msg)
 
     def _publish_e_stop(self) -> None:
         msg = messages.StopMotorsMessage()
-        self._publishers[registry.Channels.STOP_MOTORS].publish(msg)
+        self.publish(registry.Channels.STOP_MOTORS, msg)
 
-    async def _send_request(
-        self, spec: core.RequestSpec, request_msg: core.Request
-    ) -> core.RequestResponse:
-        if spec not in self._request_clients:
-            raise RuntimeError(
-                "Unrecognized Request spec, did you forget to add it? "
-                f"{spec.base_channel.upper()}"
+    async def _exec_navigate_action(self, data: Dict[str, float]) -> responses.Response:
+        if (nav_request := self._gen_navigate_request(data)) is None:
+            return responses.Response(
+                {"status": "failed", "message": "No Latitude or longitude received"},
+                400,
             )
 
-        return await self._request_clients[spec].send(request_msg)
-
-    async def _exec_navigate_action(
-        self, data: Dict[str, float]
-    ) -> Tuple[Response, int]:
-        if (nav_request := self._gen_navigate_request(data)) is None:
-            return jsonify(
-                {"status": "failed", "message": "No Latitude or longitude received"}
-            ), 400
-
         if self._nav_task is not None and not self._nav_task.done():
-            return jsonify({"status": "failed", "message": "Nav task running."}), 409
+            return responses.Response(
+                {"status": "failed", "message": "Nav task running."}, 409
+            )
 
         try:
             return_msg = await self._navigate_to_target(nav_request)
         except asyncio.CancelledError:
-            return jsonify({"status": "failed", "message": "Request Cancelled"}), 200
+            return responses.Response(
+                {"status": "failed", "message": "Request Cancelled"}, 200
+            )
         else:
             if return_msg is not None:
-                return jsonify({"status": "failed", "message": return_msg}), 500
+                return responses.Response(
+                    {"status": "failed", "message": return_msg}, 500
+                )
             else:
-                return jsonify(
-                    {"status": "success", "message": "finished navigating."}
-                ), 201
+                return responses.Response(
+                    {"status": "success", "message": "finished navigating."}, 201
+                )
 
     def _gen_navigate_request(
         self, data: Dict[str, float]
@@ -267,17 +236,12 @@ class UINode:
         else:
             raise ValueError(f"Unexpected tab name {tab_name=}")
 
-    def _clean_up_tasks(self) -> None:
+    async def shutdown_hook(self) -> None:
         if self._nav_task is not None:
             self._nav_task.cancel()
-
-        for client in self._request_clients.values():
-            client.close()
-
-        for pub in self._publishers.values():
-            pub.close()
+            self._nav_task = None
 
 
 if __name__ == "__main__":
-    node = UINode("0.0.0.0", 5000)
+    node = UINode(5000)
     node.start()

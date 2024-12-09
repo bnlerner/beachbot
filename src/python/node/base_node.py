@@ -1,12 +1,40 @@
 import asyncio
 import functools
+import ipaddress
 import signal
 from types import FrameType
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Sequence, Union
 
 import log
 import looped_function
+import uvicorn
 from ipc import core, pubsub, request
+from starlette import applications, middleware, routing
+from starlette.middleware import cors
+
+RouteType = Union[routing.Route, routing.BaseRoute]
+
+_MIDDLEWARE = [
+    middleware.Middleware(
+        cors.CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+        allow_credentials=True,
+    )
+]
+_LOCAL_HOST = ipaddress.IPv4Address("0.0.0.0")
+_CERT_PATH = "env/auth/cert.pem"
+_KEY_PATH = "env/auth/key.pem"
+
+
+class _NoSignalInterruptServer(uvicorn.Server):
+    """Custom child of the uvicorn server that doesn't interfere with the signal
+    handling in BaseNode. https://github.com/encode/uvicorn/issues/1579
+    """
+
+    def install_signal_handlers(self) -> None:
+        pass
 
 
 class BaseNode:
@@ -25,6 +53,7 @@ class BaseNode:
         self._publishers: Dict[core.ChannelSpec, pubsub.Publisher] = {}
         self._request_clients: Dict[core.RequestSpec, request.RequestClient] = {}
         self._request_server: Optional[request.RequestServer] = None
+        self._http_server: Optional[uvicorn.Server] = None
         self._add_cleanup_signals()
 
     def start(self) -> None:
@@ -68,6 +97,18 @@ class BaseNode:
         self._request_server = request.RequestServer(
             self._node_id, request_spec, request_func
         )
+
+    def set_http_server(self, port: int, routes: Sequence[RouteType]) -> None:
+        server_config = uvicorn.Config(
+            applications.Starlette(debug=True, routes=routes, middleware=_MIDDLEWARE),
+            host=str(_LOCAL_HOST),
+            port=port,
+            ssl_keyfile=_KEY_PATH,
+            ssl_certfile=_CERT_PATH,
+            use_colors=True,
+            log_level="info",
+        )
+        self._http_server = _NoSignalInterruptServer(server_config)
 
     def publish(self, channel: core.ChannelSpec, msg: core.BaseMessage) -> None:
         if channel not in self._publishers:
@@ -130,6 +171,9 @@ class BaseNode:
 
         if self._request_server:
             self._task_functions.append(self._request_server.start)
+
+        if self._http_server is not None:
+            self._task_functions.append(self._http_server.serve)
 
     def _create_tasks(self) -> None:
         for function in self._task_functions:
