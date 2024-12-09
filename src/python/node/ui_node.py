@@ -12,6 +12,7 @@ from starlette.staticfiles import StaticFiles
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import log
+import system_info
 from ipc import core, messages, registry, session
 from localization import gps_transformer, primitives
 from models import body_model, constants
@@ -22,6 +23,7 @@ from node import base_node
 _DEFAULT_UTM_ZONE = primitives.UTMZone(
     zone_number=17, hemisphere="north", epsg_code="EPSG:32617"
 )
+_STATIC_RESOURCE_PATH = system_info.get_root_project_directory() / "env" / "static"
 
 
 class UINode(base_node.BaseNode):
@@ -30,7 +32,7 @@ class UINode(base_node.BaseNode):
     """
 
     def __init__(self, port: int, *, debug: bool = False) -> None:
-        self._node_id = registry.NodeIDs.UI
+        super().__init__(registry.NodeIDs.UI)
         self._port = port
         self._debug = debug
         self._gps_transformer = gps_transformer.GPSTransformer(_DEFAULT_UTM_ZONE)
@@ -58,14 +60,16 @@ class UINode(base_node.BaseNode):
             routing.Route("/keep-alive", self._keep_alive, methods=["POST"]),
             # Mount the static files directory
             routing.Mount(
-                "/", StaticFiles(directory="static", html=True), name="static"
+                "/",
+                StaticFiles(directory=_STATIC_RESOURCE_PATH, html=True),
+                name="static",
             ),
         ]
         self.set_http_server(self._port, routes)
 
     async def _tab_switch(self, request: requests.Request) -> responses.Response:
         if (data := await request.json()) is None:
-            return responses.Response(
+            return responses.JSONResponse(
                 {"status": "failed", "message": "Invalid JSON"}, 400
             )
 
@@ -73,25 +77,25 @@ class UINode(base_node.BaseNode):
         log.info(f"Switched to tab: {tab_name}")
         self._cancel_nav_if_on_wrong_tab(tab_name)
         # You can perform additional actions here based on the tab change
-        return responses.Response({"status": "success", "tab": tab_name}, 200)
+        return responses.JSONResponse({"status": "success", "tab": tab_name}, 200)
 
     async def _rc_input(self, request: requests.Request) -> responses.Response:
         # Capture joystick input from POST request to RC
         if (data := await request.json()) is None:
-            return responses.Response(
+            return responses.JSONResponse(
                 {"status": "failed", "message": "Invalid JSON"}, 400
             )
 
         self._update_rc_controller(data)
         self._publish_rc_cmd_msgs()
-        return responses.Response(
+        return responses.JSONResponse(
             {"status": "success", "message": "Data received"}, 201
         )
 
     async def _navigate(self, request: requests.Request) -> responses.Response:
         if request.method == "POST":
             if (data := await request.json()) is None:
-                return responses.Response(
+                return responses.JSONResponse(
                     {"status": "failed", "message": "Invalid JSON"}, 400
                 )
 
@@ -99,9 +103,9 @@ class UINode(base_node.BaseNode):
         elif request.method == "DELETE":
             if self._nav_task is not None:
                 self._nav_task.cancel()
-                return responses.Response({"status": "Navigation cancelled."}, 200)
+                return responses.JSONResponse({"status": "Navigation cancelled."}, 200)
             else:
-                return responses.Response(
+                return responses.JSONResponse(
                     {"status": "No active navigation request"}, 404
                 )
         else:
@@ -110,13 +114,13 @@ class UINode(base_node.BaseNode):
     def _e_stop(self, _: requests.Request) -> responses.Response:
         self._publish_e_stop()
         log.info("Emergency Stop triggered!")
-        return responses.Response({"status": "E-Stop activated"}, 201)
+        return responses.JSONResponse({"status": "E-Stop activated"}, 201)
 
     def _keep_alive(self, request: requests.Request) -> responses.Response:
         if client_ip := request.client:
             self._client_connections[client_ip.host] = time.perf_counter()
 
-        return responses.Response({"status": "alive"}, 201)
+        return responses.JSONResponse({"status": "alive"}, 201)
 
     def _update_rc_controller(self, data: Dict[str, str]) -> None:
         # Positive X is turn right
@@ -169,29 +173,29 @@ class UINode(base_node.BaseNode):
 
     async def _exec_navigate_action(self, data: Dict[str, float]) -> responses.Response:
         if (nav_request := self._gen_navigate_request(data)) is None:
-            return responses.Response(
+            return responses.JSONResponse(
                 {"status": "failed", "message": "No Latitude or longitude received"},
                 400,
             )
 
         if self._nav_task is not None and not self._nav_task.done():
-            return responses.Response(
+            return responses.JSONResponse(
                 {"status": "failed", "message": "Nav task running."}, 409
             )
 
         try:
             return_msg = await self._navigate_to_target(nav_request)
         except asyncio.CancelledError:
-            return responses.Response(
+            return responses.JSONResponse(
                 {"status": "failed", "message": "Request Cancelled"}, 200
             )
         else:
             if return_msg is not None:
-                return responses.Response(
+                return responses.JSONResponse(
                     {"status": "failed", "message": return_msg}, 500
                 )
             else:
-                return responses.Response(
+                return responses.JSONResponse(
                     {"status": "success", "message": "finished navigating."}, 201
                 )
 

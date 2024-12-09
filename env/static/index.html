@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Beachbot Control Hub</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
     <h2>Beachbot Control Hub</h2>
@@ -23,7 +23,7 @@
         <div id="coordinates">Turn (positive is right): 0, Drive (positive is forward): 0</div>
 
         <!-- Include NippleJS -->
-        <script src="{{ url_for('static', filename='js/nipplejs.js') }}"></script>
+        <script src="/nipplejs.js"></script>
         <script>
             // Initialize the joystick using NippleJS
             const joystickContainer = document.getElementById('zone_joystick');

@@ -106,7 +106,7 @@ class BaseNode:
             ssl_keyfile=_KEY_PATH,
             ssl_certfile=_CERT_PATH,
             use_colors=True,
-            log_level="info",
+            log_level="error",
         )
         self._http_server = _NoSignalInterruptServer(server_config)
 
