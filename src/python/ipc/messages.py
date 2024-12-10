@@ -5,6 +5,7 @@ from ipc import core
 
 
 class GNSSMessage(core.BaseMessage):
+    """Message containing the current location of the robot."""
     latitude: float
     longitude: float
     ellipsoid_height: float
@@ -12,6 +13,9 @@ class GNSSMessage(core.BaseMessage):
 
 
 class ESFMessage(core.BaseMessage):
+    """Extended sensor fusion message including IMU data like RPY along with angular
+    velocity / acceleration.
+    """
     roll: float
     pitch: float
     heading: float
@@ -20,8 +24,8 @@ class ESFMessage(core.BaseMessage):
 
 
 class MotorCommandMessage(core.BaseMessage):
-    """Commands a velocity setpoint for the motor, along with a feedforward torque in
-    Nm.
+    """Commands a velocity setpoint for the motor Allows setting a feedforward torque
+    (Nm) along with a custom integral reset directly in the motor controller.
     """
 
     motor: robot_config.Motor
@@ -31,12 +35,13 @@ class MotorCommandMessage(core.BaseMessage):
 
 
 class MotorVelocityMessage(core.BaseMessage):
+    """Estimated motor velocity according to the motor controller."""
     motor: robot_config.Motor
     estimated_velocity: float
 
 
 class NavigateRequest(core.Request):
-    """A location to navigate to."""
+    """A requres to navigate to a specific target location."""
 
     target: geometry.Position
 
