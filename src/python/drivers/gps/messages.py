@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Literal
-
 import pydantic
 from ublox_gps import core as ublox_core  # type: ignore[import-untyped]
 

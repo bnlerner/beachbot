@@ -76,7 +76,9 @@ class Localizer:
         self, utm_velocity: geometry.Velocity, veh_ori: geometry.Orientation
     ) -> geometry.Velocity:
         """Calculates the vehicle velocity."""
-        veh_velocity = utm_velocity.rotated(veh_ori.as_rotation().inverted(), intrinsic=False)
+        veh_velocity = utm_velocity.rotated(
+            veh_ori.as_rotation().inverted(), intrinsic=False
+        )
         veh_velocity.frame = geometry.VEHICLE
 
         return veh_velocity

@@ -124,7 +124,9 @@ class BaseVectorType:
     def data(self) -> Tuple[float, float, float]:
         return self.x, self.y, self.z
 
-    def rotated(self: BaseVectorTypeT, rotation: Rotation, *, intrinsic: bool = True) -> BaseVectorTypeT:
+    def rotated(
+        self: BaseVectorTypeT, rotation: Rotation, *, intrinsic: bool = True
+    ) -> BaseVectorTypeT:
         """This object rotated about a standard rotation matrix either intrinsically or
         extrinsically.
         """
@@ -393,7 +395,9 @@ class Pose:
         ).as_orientation()
 
     def _pos_in_local(self, position: Position) -> Position:
-        return (position - self.position).rotated(self.inverted_rotation, intrinsic=False)
+        return (position - self.position).rotated(
+            self.inverted_rotation, intrinsic=False
+        )
 
     def is_close(self, other: Pose, *, atol: float = _DEFAULT_ATOL) -> bool:
         return self.position.is_close(
