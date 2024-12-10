@@ -27,7 +27,7 @@ class BaseMessage(pydantic.BaseModel):
     origin: Optional[NodeID] = None
     creation: Optional[float] = None
 
-    # Message lifetime of 0.5s by default
+    # Message default lifetime
     lifetime: float = 0.5
 
     def expired(self) -> bool:
