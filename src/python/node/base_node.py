@@ -1,6 +1,7 @@
 import asyncio
 import functools
 import ipaddress
+import logging
 import signal
 from types import FrameType
 from typing import Callable, Dict, List, Optional, Sequence, Union
@@ -35,6 +36,13 @@ class _NoSignalInterruptServer(uvicorn.Server):
 
     def install_signal_handlers(self) -> None:
         pass
+
+
+class _CancelledErrorFilter(logging.Filter):
+    """Skips logging asyncio CancelledErrors."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "asyncio.exceptions.CancelledError" not in record.getMessage()
 
 
 class BaseNode:
@@ -108,6 +116,7 @@ class BaseNode:
             use_colors=True,
             log_level="error",
         )
+        logging.getLogger("uvicorn.error").addFilter(_CancelledErrorFilter())
         self._http_server = _NoSignalInterruptServer(server_config)
 
     def publish(self, channel: core.ChannelSpec, msg: core.BaseMessage) -> None:

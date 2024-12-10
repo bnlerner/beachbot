@@ -134,6 +134,11 @@ class Orchestrator:
                 process.wait(5)
             except ProcessLookupError:
                 print(f"PID: {process.pid}, Unable to find process")
+            except subprocess.TimeoutExpired:
+                print(
+                    f"PID: {process.pid}, Timed out during shutdown. Killing process."
+                )
+                process.send_signal(signal.SIGKILL.value)
             else:
                 print(
                     f"PID: {process.pid}, Stopped process with result {process.returncode}"

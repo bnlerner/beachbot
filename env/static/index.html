@@ -33,6 +33,11 @@
             let js_y = 0;
             let should_stop = false;
 
+            // Prevents resizing via double click
+            document.addEventListener("dblclick", (event) => {
+                event.preventDefault();
+            });
+
             const joystick = nipplejs.create({
                 zone: joystickContainer,
                 size: 200,
@@ -66,10 +71,13 @@
                 // Send the joystick data to the server
                 fetch('/joystick_input', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ x: js_x, y: js_y, stop: should_stop})
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        token: token,
+                        x: js_x,
+                        y: js_y,
+                        stop: should_stop
+                    })
                 }).then(response => response.json())
                 .then(data => console.log(data))
             };
@@ -106,10 +114,9 @@
                             // Send a navigate request with GPS data to the server
                             fetch('/navigate', {
                                 method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                },
+                                headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
+                                    token: token,
                                     latitude: latitude,
                                     longitude: longitude,
                                     altitude: altitude,
@@ -135,7 +142,9 @@
             }
             function cancelNavigateRequest() {
                 fetch('/navigate', {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token }),
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -149,7 +158,9 @@
             }
             function sendEStop() {
                 fetch('/e-stop', {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token }),
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -170,6 +181,27 @@
         const statusLight = document.getElementById("status-light");
         const statusText = document.getElementById("status-text");
         let isConnected = false;
+        const token = generateToken();
+
+        function generateToken(length = 32) {
+            const array = new Uint8Array(length);
+            window.crypto.getRandomValues(array);
+            return btoa(String.fromCharCode.apply(null, array)).slice(0, length);
+        }
+
+        fetch('/start-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token }),
+        })
+        .then((response) => {
+            if (response.ok) {
+                console.log('Session started successfully');
+            } else {
+                console.error('Failed to start session');
+            }
+        })
+        .catch((error) => console.error('Error starting session: ', error));
 
         // Function to open a tab and close others
         function openTab(event, tabName) {
@@ -186,16 +218,14 @@
             event.currentTarget.classList.add('active');
 
             // Send a request to the server when switching tabs
-            fetch(`/tab_switch`, {
+            fetch('/tab_switch', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ tab: tabName }),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: token, tab: tabName }),
             })
             .then(response => response.json())
             .then(data => {
-                console.log(`Server response:`, data);
+                console.log('Server response: ', data);
             })
             .catch(error => {
                 console.error('Error sending tab switch request:', error);
@@ -212,15 +242,25 @@
             fetch('/keep-alive', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'alive' }),
+                body: JSON.stringify({ token: token, status: 'alive' }),
             })
-                .then(() => {
+                .then(response => response.json())
+                .then(data => {
                     isConnected = true;
-                    statusLight.style.backgroundColor = 'green'; // Update light to green
+                    if (data.status == 'alive') {
+                        /* Green indicates that the session is connected and able to
+                        move the robot. */
+                        statusLight.style.backgroundColor = 'green';
+                    } else {
+                        /* Yellow indicates an authenication issue and the robot is up
+                        but not available to connect. This can be due to multiple
+                        sessions open trying to simultaneously connect to the robot. */
+                        statusLight.style.backgroundColor = 'yellow';
+                    }
                 })
                 .catch(() => {
                     isConnected = false;
-                    statusLight.style.backgroundColor = 'red'; // Update light to red
+                    statusLight.style.backgroundColor = 'red';
                 });
         };
 

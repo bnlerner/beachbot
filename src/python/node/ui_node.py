@@ -2,9 +2,8 @@ import asyncio
 import os
 import sys
 import time
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
-import uvicorn
 from starlette import requests, responses, routing
 from starlette.staticfiles import StaticFiles
 
@@ -24,6 +23,7 @@ _DEFAULT_UTM_ZONE = primitives.UTMZone(
     zone_number=17, hemisphere="north", epsg_code="EPSG:32617"
 )
 _STATIC_RESOURCE_PATH = system_info.get_root_project_directory() / "env" / "static"
+_CLIENT_TIMEOUT = 10  # timeout in seconds
 
 
 class UINode(base_node.BaseNode):
@@ -40,8 +40,7 @@ class UINode(base_node.BaseNode):
         self._rc_controller = body_model.BodyModel(session.get_robot_config())
         self._stop_robot: bool = True
         self._nav_task: Optional[asyncio.Task] = None
-        self._client_connections: Dict[str, float] = {}
-        self._http_server: Optional[uvicorn.Server] = None
+        self._client_sessions: Dict[str, float] = {}
 
         self.add_publishers(
             registry.Channels.MOTOR_CMD_FRONT_LEFT,
@@ -58,6 +57,7 @@ class UINode(base_node.BaseNode):
             routing.Route("/navigate", self._navigate, methods=["POST", "DELETE"]),
             routing.Route("/e-stop", self._e_stop, methods=["POST"]),
             routing.Route("/keep-alive", self._keep_alive, methods=["POST"]),
+            routing.Route("/start-session", self._start_session, methods=["POST"]),
             # Mount the static files directory
             routing.Mount(
                 "/",
@@ -68,10 +68,8 @@ class UINode(base_node.BaseNode):
         self.set_http_server(self._port, routes)
 
     async def _tab_switch(self, request: requests.Request) -> responses.Response:
-        if (data := await request.json()) is None:
-            return responses.JSONResponse(
-                {"status": "failed", "message": "Invalid JSON"}, 400
-            )
+        if (data := await self._extract_data_from_request(request)) is None:
+            return responses.JSONResponse({"status": "Invalid client request."}, 409)
 
         tab_name = self._get_tab_name(data)
         log.info(f"Switched to tab: {tab_name}")
@@ -80,11 +78,8 @@ class UINode(base_node.BaseNode):
         return responses.JSONResponse({"status": "success", "tab": tab_name}, 200)
 
     async def _rc_input(self, request: requests.Request) -> responses.Response:
-        # Capture joystick input from POST request to RC
-        if (data := await request.json()) is None:
-            return responses.JSONResponse(
-                {"status": "failed", "message": "Invalid JSON"}, 400
-            )
+        if (data := await self._extract_data_from_request(request)) is None:
+            return responses.JSONResponse({"status": "Invalid client request."}, 409)
 
         self._update_rc_controller(data)
         self._publish_rc_cmd_msgs()
@@ -93,12 +88,10 @@ class UINode(base_node.BaseNode):
         )
 
     async def _navigate(self, request: requests.Request) -> responses.Response:
-        if request.method == "POST":
-            if (data := await request.json()) is None:
-                return responses.JSONResponse(
-                    {"status": "failed", "message": "Invalid JSON"}, 400
-                )
+        if (data := await self._extract_data_from_request(request)) is None:
+            return responses.JSONResponse({"status": "Invalid client request."}, 409)
 
+        if request.method == "POST":
             return await self._exec_navigate_action(data)
         elif request.method == "DELETE":
             if self._nav_task is not None:
@@ -111,16 +104,37 @@ class UINode(base_node.BaseNode):
         else:
             raise ValueError(f"Unexpected request {request=}")
 
-    def _e_stop(self, _: requests.Request) -> responses.Response:
+    async def _e_stop(self, request: requests.Request) -> responses.Response:
+        if await self._extract_data_from_request(request) is None:
+            return responses.JSONResponse({"status": "Invalid client request."}, 409)
+
         self._publish_e_stop()
         log.info("Emergency Stop triggered!")
         return responses.JSONResponse({"status": "E-Stop activated"}, 201)
 
-    def _keep_alive(self, request: requests.Request) -> responses.Response:
-        if client_ip := request.client:
-            self._client_connections[client_ip.host] = time.perf_counter()
+    async def _keep_alive(self, request: requests.Request) -> responses.Response:
+        if (data := await request.json()) is None or (
+            token := data.get("token")
+        ) is None:
+            return responses.JSONResponse({"status": "invalid keep alive request"}, 400)
 
-        return responses.JSONResponse({"status": "alive"}, 201)
+        if self._active_client() == token or self._is_active_client_expired():
+            self._client_sessions[token] = time.perf_counter()
+            return responses.JSONResponse({"status": "alive"}, 200)
+        else:
+            return responses.JSONResponse({"status": "multiple"}, 200)
+
+    async def _start_session(self, request: requests.Request) -> responses.Response:
+        if (data := await request.json()) is None or (
+            token := data.get("token")
+        ) is None:
+            return responses.JSONResponse({"status": "Token missing"}, 400)
+
+        # Store the token with a timestamp (or user association)
+        self._client_sessions[token] = time.perf_counter()
+        return responses.JSONResponse(
+            {"status": "success", "message": "Session started"}, 201
+        )
 
     def _update_rc_controller(self, data: Dict[str, str]) -> None:
         # Positive X is turn right
@@ -220,6 +234,36 @@ class UINode(base_node.BaseNode):
             return tab_name
         else:
             raise ValueError(f"Expected tab key in data {data=}")
+
+    def _active_client(self) -> Optional[str]:
+        if len(self._client_sessions) > 0:
+            return max(self._client_sessions, key=lambda x: self._client_sessions[x])
+        else:
+            return None
+
+    def _is_active_client_expired(self) -> bool:
+        if active_client := self._active_client():
+            return (
+                self._client_sessions[active_client] + _CLIENT_TIMEOUT
+                < time.perf_counter()
+            )
+        else:
+            # No client so its expired by default.
+            return True
+
+    async def _extract_data_from_request(
+        self, request: requests.Request
+    ) -> Optional[Dict[str, Any]]:
+        if (data := await request.json()) is None:
+            return None
+
+        if (token := data.get("token")) is None:
+            return None
+
+        if self._active_client() != token or self._is_active_client_expired():
+            return None
+
+        return data
 
     def _cancel_nav_if_on_wrong_tab(self, tab_name: str) -> None:
         if tab_name == "rc_tab":
