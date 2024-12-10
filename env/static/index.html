@@ -44,7 +44,6 @@
                 size: 200,
                 color: 'blue',
             });
-            // Listen for joystick move events and send data to the server
             joystick.on('move', (event, data) => {
                 if (data && data.vector) {
                     js_x = data.vector.x.toFixed(2);
