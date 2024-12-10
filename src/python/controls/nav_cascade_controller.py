@@ -26,6 +26,7 @@ class NavCascadeController:
             self._controller.reset()
 
         target_in_body = cur_pose.to_local(navpoint.pose_2d)
+        target_in_body.update_frame(geometry.BODY)
         target_twist = self._target_generator.gen_twist(
             navpoint.signed_turn_radius, reference_speed, target_in_body
         )

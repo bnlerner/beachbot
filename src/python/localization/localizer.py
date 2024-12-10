@@ -39,7 +39,7 @@ class Localizer:
         self._gnss_message = None
 
     def vehicle_kin_msg(self) -> Optional[messages.VehicleKinematicsMessage]:
-        if self._gnss_message and self._esf_message:
+        if self._gnss_message is not None and self._esf_message is not None:
             position = self._gps_transformer.transform_position(
                 self._gnss_message.longitude,
                 self._gnss_message.latitude,

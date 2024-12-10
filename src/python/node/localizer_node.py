@@ -9,7 +9,8 @@ from localization import localizer
 
 from node import base_node
 
-_PUB_FREQENCY = 50
+# TODO: Update this with motor velocity
+_PUB_FREQENCY = 4
 
 
 class LocalizerNode(base_node.BaseNode):
@@ -37,7 +38,6 @@ class LocalizerNode(base_node.BaseNode):
     async def _publish_body_kinematics(self) -> None:
         if veh_msg := self._localizer.vehicle_kin_msg():
             self.publish(registry.Channels.BODY_KINEMATICS, veh_msg)
-            self._localizer.reset()
 
     def _update_esf(self, msg: messages.ESFMessage) -> None:
         self._localizer.input_esf_msg(msg)
