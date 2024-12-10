@@ -143,7 +143,7 @@ class Beachbot(pydantic.BaseModel):
         drivetrain = self._get_filtered_drivetrain(DrivetrainLocation.REAR_RIGHT)
         return drivetrain.wheel
 
-    @functools.lru_cache()
+    @functools.lru_cache
     def _get_filtered_drivetrain(self, location: DrivetrainLocation) -> Drivetrain:
         return filter(lambda x: x.location == location, self.drivetrain).__next__()
 
