@@ -76,7 +76,7 @@ def test_intrinsic_rotation_matrix(roll: float, pitch: float, yaw: float) -> Non
 def test_rotating_objects(angle: float) -> None:
     p0 = geometry.Position(geometry.UTM, 1, 0)
     rot = geometry.Rotation(geometry.UTM, 0, 0, angle)
-    p2 = p0.rotated(rot)
+    p2 = p0.rotated(rot, intrinsic=False)
 
     assert np.isclose(p0.angle_to(p2), abs(angle))
     direction = geometry.Direction.from_celestial(geometry.UTM, 0, angle)

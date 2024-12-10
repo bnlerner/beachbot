@@ -17,7 +17,7 @@ _DEFAULT_ATOL = 1e-8
 
 @dataclasses.dataclass
 class BaseAngleType:
-    """In degrees"""
+    """An angle type that is compose of RPY in degrees."""
 
     frame: frames.ReferenceFrame
     roll: float
@@ -35,7 +35,7 @@ class BaseAngleType:
         return self.roll, self.pitch, self.yaw
 
     def as_matrix(self) -> np.ndarray:
-        """Implied this is an extrinsic matrix."""
+        """Returns this object as a numpy matrix, an extrinsic matrix by default."""
         return math_helpers.extrinsic_xyz_rotation_matrix(
             math.radians(self.roll), math.radians(self.pitch), math.radians(self.yaw)
         )
@@ -43,6 +43,9 @@ class BaseAngleType:
     def is_close(
         self: BaseAngleTypeT, other: BaseAngleTypeT, *, atol: float = _DEFAULT_ATOL
     ) -> bool:
+        """Compares two Angle type objects and if they are relatively close to one
+        another. A good way to account for different float quirks.
+        """
         _raise_if_frames_different(self, other)
         return all(
             abs(d2 - d1) < atol for d1, d2 in zip(self.data, other.data, strict=True)
@@ -51,7 +54,9 @@ class BaseAngleType:
     def rotated(
         self: BaseAngleTypeT, rotation: Rotation, *, intrinsic: bool = True
     ) -> BaseAngleTypeT:
-        """A rotation of the orientation."""
+        """This object rotated about a standard rotation matrix either intrinsically or
+        extrinsically.
+        """
         _raise_if_frames_different(self, rotation)
         if intrinsic:
             rotated_matrix = np.dot(self.as_matrix(), rotation.as_matrix())
@@ -119,10 +124,16 @@ class BaseVectorType:
     def data(self) -> Tuple[float, float, float]:
         return self.x, self.y, self.z
 
-    def rotated(self: BaseVectorTypeT, rotation: Rotation) -> BaseVectorTypeT:
-        """Extrinsic rotation."""
+    def rotated(self: BaseVectorTypeT, rotation: Rotation, *, intrinsic: bool = True) -> BaseVectorTypeT:
+        """This object rotated about a standard rotation matrix either intrinsically or
+        extrinsically.
+        """
         _raise_if_frames_different(self, rotation)
-        rot_vec = np.dot(rotation.as_matrix(), self.as_array())
+        if intrinsic:
+            rot_vec = np.dot(self.as_array(), rotation.as_matrix())
+        else:
+            rot_vec = np.dot(rotation.as_matrix(), self.as_array())
+
         return self.from_array(self.frame, rot_vec)
 
     def to_2d(self: BaseVectorTypeT) -> BaseVectorTypeT:
@@ -139,6 +150,9 @@ class BaseVectorType:
     def is_close(
         self: BaseVectorTypeT, other: BaseVectorTypeT, *, atol: float = _DEFAULT_ATOL
     ) -> bool:
+        """Compares two vector type objects and if they are relatively close to one
+        another. A good way to account for different float quirks.
+        """
         _raise_if_frames_different(self, other)
         return all(
             abs(d2 - d1) < atol for d1, d2 in zip(self.data, other.data, strict=True)
@@ -202,7 +216,7 @@ class BaseVectorType:
 
 class Orientation(BaseAngleType):
     """An orientation specified in RPY with angles in degrees. Naively considers inputs
-    in degrees and doesnt double check you so be aware...
+    in degrees and doesnt double check you, so be aware...
     """
 
     @classmethod
@@ -235,9 +249,7 @@ class Orientation(BaseAngleType):
 
 
 class Rotation(BaseAngleType):
-    """A rotatation. RPY expressed in this are the degrees to rotate about the provided
-    frame.
-    """
+    """A rotatation matrix expressed in RPY with angles in degrees."""
 
     @classmethod
     def from_intrinsic_rpy(
@@ -258,7 +270,7 @@ class Rotation(BaseAngleType):
 
 
 class Position(BaseVectorType):
-    """Position in meters."""
+    """A position in cartesian space represented in meters."""
 
     def distance(self, other: Position) -> float:
         dx = self.x - other.x
@@ -268,7 +280,7 @@ class Position(BaseVectorType):
 
 
 class Velocity(BaseVectorType):
-    """meters/second"""
+    """A velocity in cartesian space represented in meters/second"""
 
     @classmethod
     def from_direction(cls, direction: Direction, magnitude: float) -> Velocity:
@@ -277,7 +289,9 @@ class Velocity(BaseVectorType):
 
 
 class Direction(BaseVectorType):
-    """A direction vector."""
+    """A direction in cartesian space represented in its xyz coordinates. Considered a
+    unit vector.
+    """
 
     def __post_init__(self) -> None:
         """Ensures the direction is a unit vector."""
@@ -295,8 +309,8 @@ class Direction(BaseVectorType):
 
 
 class AngularVelocity(BaseVectorType):
-    """A representation of angular velocity in degrees/second. For example, the value of
-    x represents the magnitude of rotation (ω) about the x-axis.
+    """An angular velocity in cartesian space represented in degrees/second. For
+    example, the value of x represents the magnitude of rotation (ω) about the x-axis.
     """
 
     def to_2d(self) -> AngularVelocity:
@@ -316,7 +330,7 @@ class AngularVelocity(BaseVectorType):
 
 
 class AngularAcceleration(BaseVectorType):
-    """Angular acceleration"""
+    """An angular acceleration in cartesian space represented in degrees/second^2"""
 
     def to_2d(self) -> AngularAcceleration:
         return AngularAcceleration(self.frame, 0, 0, self.z)
@@ -324,6 +338,8 @@ class AngularAcceleration(BaseVectorType):
 
 @dataclasses.dataclass
 class Pose:
+    """A pose in 3D cartesian space with a position and orientation."""
+
     position: Position
     orientation: Orientation
 
@@ -332,7 +348,7 @@ class Pose:
 
     @functools.cached_property
     def rotation(self) -> Rotation:
-        """Rotation of the associated orientation."""
+        """The orientation of the pose represented as a rotation."""
         return self.orientation.as_rotation()
 
     @functools.cached_property
@@ -377,7 +393,7 @@ class Pose:
         ).as_orientation()
 
     def _pos_in_local(self, position: Position) -> Position:
-        return (position - self.position).rotated(self.inverted_rotation)
+        return (position - self.position).rotated(self.inverted_rotation, intrinsic=False)
 
     def is_close(self, other: Pose, *, atol: float = _DEFAULT_ATOL) -> bool:
         return self.position.is_close(
@@ -385,6 +401,7 @@ class Pose:
         ) and self.orientation.is_close(other.orientation, atol=atol)
 
     def update_frame(self, frame: frames.ReferenceFrame) -> None:
+        """Changes this object's frame."""
         self.position.frame = frame
         self.orientation.frame = frame
 
@@ -395,6 +412,8 @@ class Pose:
 
 @dataclasses.dataclass
 class Twist:
+    """A representation of the velocity and angular velocity of an object."""
+
     velocity: Velocity
     spin: AngularVelocity
 
@@ -408,6 +427,7 @@ class Twist:
         return Twist(self.velocity.to_2d(), self.spin.to_2d())
 
     def update_frame(self, frame: frames.ReferenceFrame) -> None:
+        """Changes this object's frame."""
         self.velocity.frame = frame
         self.spin.frame = frame
 
