@@ -49,3 +49,14 @@ class SensorStatus(enum.Enum):
     INITIALIZING = 1
     INITIALIZED = 2
     IMU_MOUNT_INITIALIZED = 3
+
+
+class FixType(enum.Enum):
+    """Fix of the Ublox GPS sensor."""
+
+    NO_FIX = 0
+    DEAD_RECKONING = 1
+    FIX_2D = 2
+    FIX_3D = 3
+    GNSS_W_DEAD_RECKONING = 4
+    TIME_ONLY = 5

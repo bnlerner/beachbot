@@ -14,13 +14,7 @@ class UbloxPVTMessage(pydantic.BaseModel):
     """
 
     # Type of fix from the Ublox.
-    # 0: no fix
-    # 1: dead reckoning only
-    # 2: 2D-fix
-    # 3: 3D-fix
-    # 4: GNSS + dead reckoning combined
-    # 5: Time only fix
-    fix_type: Literal[0, 1, 2, 3, 4, 5]
+    fix_type: enums.FixType
     # Number of satellites used in fix
     num_satellites: int
     # Both in degrees with scaling 1e-7
@@ -55,7 +49,7 @@ class UbloxPVTMessage(pydantic.BaseModel):
     @classmethod
     def from_ublox_message(cls, msg: ublox_core.Message) -> UbloxPVTMessage:
         return UbloxPVTMessage(
-            fix_type=msg.fixType,
+            fix_type=enums.FixType(msg.fixType),
             num_satellites=msg.numSV,
             longitude=msg.lon,
             latitude=msg.lat,
@@ -74,7 +68,7 @@ class UbloxPVTMessage(pydantic.BaseModel):
         )
 
     def is_valid(self) -> bool:
-        return self.num_satellites > 0 and self.fix_type != 0
+        return self.num_satellites > 0 and self.fix_type.value != 0
 
 
 class UbloxATTMessage(pydantic.BaseModel):
