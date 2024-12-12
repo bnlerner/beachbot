@@ -302,3 +302,56 @@ def celestial_coordinates(altitude: float, azimuth: float) -> np.ndarray:
     z = math.sin(altitude)
 
     return np.array([x, y, z])
+
+
+@nb.njit(_F64_VECTOR(nb.float64, nb.float64, nb.float64))
+def euler_to_quaternion(roll: float, pitch: float, yaw: float) -> np.ndarray:
+    """A conversion from euler RPY in degrees to a quaternion in the format
+    (w, x, y, z).
+    """
+    roll = math.radians(roll)
+    pitch = math.radians(pitch)
+    yaw = math.radians(yaw)
+
+    cr = math.cos(roll * 0.5)
+    sr = math.sin(roll * 0.5)
+    cp = math.cos(pitch * 0.5)
+    sp = math.sin(pitch * 0.5)
+    cy = math.cos(yaw * 0.5)
+    sy = math.sin(yaw * 0.5)
+
+    w = cr * cp * cy + sr * sp * sy
+    x = sr * cp * cy - cr * sp * sy
+    y = cr * sp * cy + sr * cp * sy
+    z = cr * cp * sy - sr * sp * cy
+
+    return np.array([w, x, y, z])
+
+
+@nb.njit(_F64_VECTOR(nb.float64, nb.float64, nb.float64, nb.float64))
+def quaternion_to_euler(w: float, x: float, y: float, z: float) -> np.ndarray:
+    """A conversion from quaternion to euler RPY (roll, pitch, yaw) in degrees.
+    Normalizes the quaternion for you before performing the conversion.
+    """
+    norm = (w**2 + x**2 + y**2 + z**2) ** 0.5
+    w = w / norm
+    x = x / norm
+    y = y / norm
+    z = z / norm
+
+    # Roll (x-axis rotation)
+    t0 = 2.0 * (w * x + y * z)
+    t1 = 1.0 - 2.0 * (x * x + y * y)
+    roll = math.atan2(t0, t1)
+
+    # Pitch (y-axis rotation)
+    sinp = math.sqrt(1 + 2 * (w * y - x * z))
+    cosp = math.sqrt(1 - 2 * (w * y - x * z))
+    pitch = 2 * math.atan2(sinp, cosp) - math.pi / 2
+
+    # Yaw (z-axis rotation)
+    t3 = 2.0 * (w * z + x * y)
+    t4 = 1.0 - 2.0 * (y * y + z * z)
+    yaw = math.atan2(t3, t4)
+
+    return np.array([math.degrees(roll), math.degrees(pitch), math.degrees(yaw)])

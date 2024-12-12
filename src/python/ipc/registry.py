@@ -14,7 +14,7 @@ class Channels(SimpleNamespace):
     BODY_KINEMATICS = core.ChannelSpec[messages.VehicleKinematicsMessage](
         channel="vehicle_dynamics"
     )
-    ESF = core.ChannelSpec[messages.ESFMessage](channel="esf")
+    IMU = core.ChannelSpec[messages.IMUMessage](channel="imu")
     GNSS = core.ChannelSpec[messages.GNSSMessage](channel="gnss")
     MOTOR_CMD_FRONT_LEFT = core.ChannelSpec[messages.MotorCommandMessage](
         channel="front_left_motor_command"
@@ -50,12 +50,13 @@ class Requests(SimpleNamespace):
 class NodeIDs(SimpleNamespace):
     """A registry of Node IDs available to use."""
 
+    GNSS = core.NodeID(name="gnss")
+    IMU = core.NodeID(name="imu")
     LOCALIZER = core.NodeID(name="localizer")
     MOTOR_CONTROL = core.NodeID(name="motor_control")
     NAVIGATION = core.NodeID(name="navigation")
     RC = core.NodeID(name="rc")
-    UBLOX_DATA = core.NodeID(name="ublox_data")
-    UI = core.NodeID(name="ui_node")
+    UI = core.NodeID(name="ui")
 
 
 def motor_command_channel(motor: robot_config.Motor) -> core.ChannelSpec:

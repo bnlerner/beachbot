@@ -17,7 +17,7 @@ class Localizer:
     """Calculates the kinematics of the robot."""
 
     def __init__(self, utm_zone: primitives.UTMZone = _DEFAULT_UTM_ZONE):
-        self._esf_message: Optional[messages.ESFMessage] = None
+        self._imu_message: Optional[messages.IMUMessage] = None
         self._gnss_message: Optional[messages.GNSSMessage] = None
         self._motor_velocities: DefaultDict[
             robot_config.DrivetrainLocation, float
@@ -28,18 +28,18 @@ class Localizer:
     def input_gnss_msg(self, msg: messages.GNSSMessage) -> None:
         self._gnss_message = msg
 
-    def input_esf_msg(self, msg: messages.ESFMessage) -> None:
-        self._esf_message = msg
+    def input_imu_msg(self, msg: messages.IMUMessage) -> None:
+        self._imu_message = msg
 
     def input_motor_vel_msg(self, msg: messages.MotorVelocityMessage) -> None:
         self._motor_velocities[msg.motor.location] = msg.estimated_velocity
 
     def reset(self) -> None:
-        self._esf_message = None
+        self._imu_message = None
         self._gnss_message = None
 
     def vehicle_kin_msg(self) -> Optional[messages.VehicleKinematicsMessage]:
-        if self._gnss_message is not None and self._esf_message is not None:
+        if self._gnss_message is not None and self._imu_message is not None:
             position = self._gps_transformer.transform_position(
                 self._gnss_message.longitude,
                 self._gnss_message.latitude,
@@ -48,14 +48,14 @@ class Localizer:
             yaw = self._gps_transformer.transform_heading(
                 self._gnss_message.longitude,
                 self._gnss_message.latitude,
-                self._esf_message.heading,
+                self._gnss_message.heading,
             )
             orientation = self._calc_orientation(
-                self._esf_message.roll, self._esf_message.pitch, yaw
+                self._imu_message.roll, self._imu_message.pitch, yaw
             )
             pose = geometry.Pose(position, orientation)
             velocity = self._calc_velocity(self._gnss_message.ned_velocity, orientation)
-            angular_velocity = self._esf_message.angular_velocity
+            angular_velocity = self._imu_message.angular_velocity
             return messages.VehicleKinematicsMessage(
                 pose=pose, twist=geometry.Twist(velocity, angular_velocity)
             )

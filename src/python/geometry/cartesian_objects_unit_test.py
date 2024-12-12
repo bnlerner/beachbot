@@ -103,3 +103,19 @@ def test_wrong_frame() -> None:
     p_body = geometry.Position(geometry.BODY, 1, 0, -1)
     with pytest.raises(ValueError):
         _ = p_utm + p_body
+
+
+@pytest.mark.parametrize("roll, pitch, yaw", [(0, 0, 0), (20, 0, 20), (15, -15, 15)])
+def test_euler_to_quaternion(roll: float, pitch: float, yaw: float) -> None:
+    sst_rot = sst.Rotation.from_euler("xyz", [roll, pitch, yaw], degrees=True)
+    q_x, q_y, q_z, q_w = sst_rot.as_quat()
+    w, x, y, z = geometry.euler_to_quaternion(roll, pitch, yaw)
+    test_roll, test_pitch, test_yaw = geometry.quaternion_to_euler(w, x, y, z)
+
+    assert np.isclose(q_x, x)
+    assert np.isclose(q_y, y)
+    assert np.isclose(q_z, z)
+    assert np.isclose(q_w, w)
+    assert np.isclose(test_roll, roll)
+    assert np.isclose(test_pitch, pitch)
+    assert np.isclose(test_yaw, yaw)

@@ -31,6 +31,14 @@ class NodeConfig(pydantic.BaseModel):
     ####################################################################################
 
     @classmethod
+    def gnss_node(cls) -> NodeConfig:
+        return NodeConfig(file_name="gnss_node.py")
+
+    @classmethod
+    def imu_node(cls) -> NodeConfig:
+        return NodeConfig(file_name="imu_node.py")
+
+    @classmethod
     def localizer_node(cls) -> NodeConfig:
         return NodeConfig(file_name="localizer_node.py")
 
@@ -45,10 +53,6 @@ class NodeConfig(pydantic.BaseModel):
     @classmethod
     def rc_node(cls) -> NodeConfig:
         return NodeConfig(file_name="rc_node.py", env_vars={"DISPLAY": ":1"})
-
-    @classmethod
-    def ublox_data_node(cls) -> NodeConfig:
-        return NodeConfig(file_name="ublox_data_node.py")
 
     @classmethod
     def ui_node(cls) -> NodeConfig:
@@ -163,17 +167,14 @@ class Orchestrator:
 def _gen_profile(profile: Literal["ui", "rc"]) -> List[NodeConfig]:
     if profile == "ui":
         return [
-            NodeConfig.ublox_data_node(),
-            NodeConfig.ui_node(),
-            NodeConfig.motor_control_node(),
+            NodeConfig.gnss_node(),
+            NodeConfig.imu_node(),
             NodeConfig.localizer_node(),
+            NodeConfig.motor_control_node(),
             NodeConfig.navigation_server(),
+            NodeConfig.ui_node(),
         ]
     elif profile == "rc":
-        return [
-            NodeConfig.ublox_data_node(),
-            NodeConfig.motor_control_node(),
-            NodeConfig.rc_node(),
-        ]
+        return [NodeConfig.motor_control_node(), NodeConfig.rc_node()]
     else:
         raise NotImplementedError(f"Unexpected profile: {profile}")

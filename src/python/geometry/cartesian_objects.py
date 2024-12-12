@@ -338,6 +338,13 @@ class AngularAcceleration(BaseVectorType):
         return AngularAcceleration(self.frame, 0, 0, self.z)
 
 
+class Acceleration(BaseVectorType):
+    """An acceleration in cartesian space represented in meters/second^2"""
+
+    def to_2d(self) -> Acceleration:
+        return Acceleration(self.frame, self.x, self.y, 0)
+
+
 @dataclasses.dataclass
 class Pose:
     """A pose in 3D cartesian space with a position and orientation."""

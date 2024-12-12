@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import geometry
 import pydantic
 from ublox_gps import core as ublox_core  # type: ignore[import-untyped]
 
@@ -95,9 +96,11 @@ class UbloxINSMessage(pydantic.BaseModel):
     x_axis_acceleration: float
     y_axis_acceleration: float
     z_axis_acceleration: float
+    is_valid: float
 
     @classmethod
     def from_ublox_message(cls, msg: ublox_core.Message) -> UbloxINSMessage:
+        val_fields = msg.biltfield0
         return UbloxINSMessage(
             x_axis_angular_rate=msg.xAngRate,
             y_axis_angular_rate=msg.yAngRate,
@@ -105,6 +108,32 @@ class UbloxINSMessage(pydantic.BaseModel):
             x_axis_acceleration=msg.xAccel,
             y_axis_acceleration=msg.yAccel,
             z_axis_acceleration=msg.zAccel,
+            is_valid=not all(
+                [
+                    val_fields.xAngRateValid,
+                    val_fields.yAngRateValid,
+                    val_fields.zAngRateValid,
+                    val_fields.xAccelValid,
+                    val_fields.yAccelValid,
+                    val_fields.zAccelValid,
+                ]
+            ),
+        )
+
+    def get_spin(self) -> geometry.AngularVelocity:
+        return geometry.AngularVelocity(
+            geometry.VEHICLE,
+            self.x_axis_angular_rate,
+            self.y_axis_angular_rate,
+            self.z_axis_angular_rate,
+        )
+
+    def get_angular_acceleration(self) -> geometry.AngularAcceleration:
+        return geometry.AngularAcceleration(
+            geometry.VEHICLE,
+            self.x_axis_acceleration,
+            self.y_axis_acceleration,
+            self.z_axis_acceleration,
         )
 
 
@@ -112,18 +141,17 @@ class UbloxESFStatusMessage(pydantic.BaseModel):
     """Ublox Status of the external sensor fusion"""
 
     fusion_mode: enums.SensorFusionMode
-    sensor_status: enums.SensorStatus
+    wheel_tick: enums.SensorStatus
+    auto_imu_mount_alignment: enums.SensorStatus
+    ins: enums.SensorStatus
+    imu: enums.SensorStatus
 
     @classmethod
     def from_ublox_message(cls, msg: ublox_core.Message) -> UbloxESFStatusMessage:
-        # TODO: Do we need Automatic IMU-mount alignment status?
-        # msg.initStatus1.mntAlgStatus
-        sensor_status = min(
-            msg.initStatus1.wtInitStatus,
-            msg.initStatus1.insInitStatus,
-            msg.initStatus2.imuInitStatus,
-        )
         return UbloxESFStatusMessage(
             fusion_mode=enums.SensorFusionMode(msg.fusionMode),
-            sensor_status=enums.SensorStatus(sensor_status),
+            wheel_tick=enums.SensorStatus(msg.initStatus1.wtInitStatus),
+            auto_imu_mount_alignment=enums.SensorStatus(msg.initStatus1.mntAlgStatus),
+            ins=enums.SensorStatus(msg.initStatus1.insInitStatus),
+            imu=enums.SensorStatus(msg.initStatus2.imuInitStatus),
         )

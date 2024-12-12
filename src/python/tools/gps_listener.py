@@ -20,34 +20,34 @@ def run() -> None:
     try:
         print("Listening for UBX Messages.")
         while True:
-            try:
-                start = time.perf_counter()
-                # Position, Velocity and Time message.
-                if coords := gps.geo_coords():
-                    pvt_msg = messages.UbloxPVTMessage.from_ublox_message(coords)
-                    print(f"{pvt_msg=}\n")
-                # Vehicle attitude
-                if veh_att := gps.veh_attitude():
-                    att_msg = messages.UbloxATTMessage.from_ublox_message(veh_att)
-                    print(f"{att_msg=}\n")
-                # Vehicle dynamics.
-                if veh_dyn := gps.vehicle_dynamics():
-                    ins_msg = messages.UbloxINSMessage.from_ublox_message(veh_dyn)
-                    print(f"{ins_msg=}\n")
-                # Status of the sensors being used for sensor fusion.
-                if status := gps.esf_status():
-                    status_msg = messages.UbloxESFStatusMessage.from_ublox_message(
-                        status
-                    )
-                    print(f"{status_msg=}\n")
-                # Status of the RF antenna.
-                if rf_status := gps.rf_ant_status():
-                    print(f"{rf_status=}\n")
-                print(f"Run time: {time.perf_counter() - start} s")
-                time.sleep(2)
+            start = time.perf_counter()
+            # Position, Velocity and Time message.
+            if coords := gps.geo_coords():
+                pvt_msg = messages.UbloxPVTMessage.from_ublox_message(coords)
+                print(f"{pvt_msg=}\n")
+            # if veh_att := gps.veh_attitude():
+            #     att_msg = messages.UbloxATTMessage.from_ublox_message(veh_att)
+            #     print(f"{att_msg=}\n")
+            # if veh_dyn := gps.vehicle_dynamics():
+            #     print(f"{veh_dyn=}")
+            #     ins_msg = messages.UbloxINSMessage.from_ublox_message(veh_dyn)
+            #     print(f"{ins_msg=}\n")
+            # Status of the sensors being used for sensor fusion.
+            # if status := gps.esf_status():
+            #     status_msg = messages.UbloxESFStatusMessage.from_ublox_message(
+            #         status
+            #     )
+            #     print(f"{status_msg=}\n")
 
-            except (ValueError, IOError) as err:
-                print(err)
+            # if esf_measures := gps.esf_measures():
+            #     print(f"{esf_measures=}")
+            # Status of the RF antenna.
+            # if rf_status := gps.rf_ant_status():
+            #     print(f"{rf_status=}\n")
+            print(f"Run time: {time.perf_counter() - start} s")
+            # time.sleep(1)
+            # data = gps.wait_packet('ESF', 'INS', 2500)
+            # print(data)
 
     finally:
         port.close()

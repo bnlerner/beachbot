@@ -6,21 +6,25 @@ from ipc import core
 
 class GNSSMessage(core.BaseMessage):
     """Message containing the current location of the robot."""
+
     latitude: float
     longitude: float
     ellipsoid_height: float
+    heading: float
     ned_velocity: geometry.Velocity
 
 
-class ESFMessage(core.BaseMessage):
-    """Extended sensor fusion message including IMU data like RPY along with angular
-    velocity / acceleration.
+class IMUMessage(core.BaseMessage):
+    """A message containing IMU data like RPY along with angular velocity and
+    acceleration.
     """
+
     roll: float
     pitch: float
     heading: float
     angular_velocity: geometry.AngularVelocity
-    angular_acceleration: geometry.AngularAcceleration
+    acceleration: geometry.Acceleration
+    is_calibrated: bool
 
 
 class MotorCommandMessage(core.BaseMessage):
@@ -37,6 +41,7 @@ class MotorCommandMessage(core.BaseMessage):
 
 class MotorVelocityMessage(core.BaseMessage):
     """Estimated motor velocity according to the motor controller."""
+
     motor: robot_config.Motor
     estimated_velocity: float
 

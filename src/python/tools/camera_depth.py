@@ -1,10 +1,10 @@
 import sys
 
 import ogl_viewer.viewer as gl
-import pyzed.sl as sl
+from pyzed import sl  # type:ignore[import-untyped]
 
 
-def main():
+def main() -> None:
     print(
         "Running Depth Sensing sample ... Press 'Esc' to quit\nPress 's' to save the point cloud"
     )
@@ -26,15 +26,18 @@ def main():
     camera2 = sl.Camera()
     status2 = camera2.open(camera2_params)
 
-    if status != sl.ERROR_CODE.SUCCESS:
-        print(repr(status))
-        exit()
+    if status1 != sl.ERROR_CODE.SUCCESS:
+        print(repr(status1))
+        sys.exit()
+    if status2 != sl.ERROR_CODE.SUCCESS:
+        print(repr(status2))
+        sys.exit()
 
     res = sl.Resolution()
     res.width = 720
     res.height = 404
 
-    camera_model = zed.get_camera_information().camera_model
+    camera_model = camera1.get_camera_information().camera_model
     # Create OpenGL viewer
     viewer = gl.GLViewer()
     viewer.init(1, sys.argv, camera_model, res)
@@ -42,12 +45,12 @@ def main():
     point_cloud = sl.Mat(res.width, res.height, sl.MAT_TYPE.F32_C4, sl.MEM.CPU)
 
     while viewer.is_available():
-        if zed.grab() == sl.ERROR_CODE.SUCCESS:
-            zed.retrieve_measure(point_cloud, sl.MEASURE.XYZRGBA, sl.MEM.CPU, res)
+        if camera1.grab() == sl.ERROR_CODE.SUCCESS:
+            camera1.retrieve_measure(point_cloud, sl.MEASURE.XYZRGBA, sl.MEM.CPU, res)
             viewer.updateData(point_cloud)
-            if viewer.save_data == True:
+            if viewer.save_data:
                 point_cloud_to_save = sl.Mat()
-                zed.retrieve_measure(
+                camera1.retrieve_measure(
                     point_cloud_to_save, sl.MEASURE.XYZRGBA, sl.MEM.CPU
                 )
                 err = point_cloud_to_save.write("Pointcloud.ply")
@@ -57,7 +60,7 @@ def main():
                     print("Current .ply file failed")
                 viewer.save_data = False
     viewer.exit()
-    zed.close()
+    camera1.close()
 
 
 if __name__ == "__main__":

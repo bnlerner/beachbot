@@ -16,6 +16,9 @@ Pose = cartesian_objects.Pose
 Twist = cartesian_objects.Twist
 AngularVelocity = cartesian_objects.AngularVelocity
 AngularAcceleration = cartesian_objects.AngularAcceleration
+Acceleration = cartesian_objects.Acceleration
 
 wrap_degrees = math_helpers.wrap_degrees
 sign = math_helpers.sign
+quaternion_to_euler = math_helpers.quaternion_to_euler
+euler_to_quaternion = math_helpers.euler_to_quaternion

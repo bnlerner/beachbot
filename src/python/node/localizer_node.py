@@ -28,7 +28,7 @@ class LocalizerNode(base_node.BaseNode):
                 registry.Channels.MOTOR_VELOCITY_FRONT_RIGHT: self._update_motor_velocity,
                 registry.Channels.MOTOR_VELOCITY_REAR_LEFT: self._update_motor_velocity,
                 registry.Channels.MOTOR_VELOCITY_REAR_RIGHT: self._update_motor_velocity,
-                registry.Channels.ESF: self._update_esf,
+                registry.Channels.IMU: self._update_imu,
                 registry.Channels.GNSS: self._update_gnss,
             }
         )
@@ -39,8 +39,8 @@ class LocalizerNode(base_node.BaseNode):
         if veh_msg := self._localizer.vehicle_kin_msg():
             self.publish(registry.Channels.BODY_KINEMATICS, veh_msg)
 
-    def _update_esf(self, msg: messages.ESFMessage) -> None:
-        self._localizer.input_esf_msg(msg)
+    def _update_imu(self, msg: messages.IMUMessage) -> None:
+        self._localizer.input_imu_msg(msg)
 
     def _update_gnss(self, msg: messages.GNSSMessage) -> None:
         self._localizer.input_gnss_msg(msg)
