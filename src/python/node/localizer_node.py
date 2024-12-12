@@ -9,8 +9,8 @@ from localization import localizer
 
 from node import base_node
 
-# TODO: Update this with motor velocity
-_PUB_FREQENCY = 4
+# TODO: Increase once GPS is supplimented with sensor fusion from the motors.
+_PUB_FREQUENCY = 20
 
 
 class LocalizerNode(base_node.BaseNode):
@@ -33,7 +33,7 @@ class LocalizerNode(base_node.BaseNode):
             }
         )
         self.add_publishers(registry.Channels.BODY_KINEMATICS)
-        self.add_looped_tasks({self._publish_body_kinematics: _PUB_FREQENCY})
+        self.add_looped_tasks({self._publish_body_kinematics: _PUB_FREQUENCY})
 
     async def _publish_body_kinematics(self) -> None:
         if veh_msg := self._localizer.vehicle_kin_msg():

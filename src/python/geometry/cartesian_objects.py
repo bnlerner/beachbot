@@ -215,6 +215,10 @@ class BaseVectorType:
         scaled_x, scaled_y, scaled_z = self.x * scalar, self.y * scalar, self.z * scalar
         return self.__class__(self.frame, scaled_x, scaled_y, scaled_z)
 
+    def __truediv__(self: BaseVectorTypeT, scalar: float) -> BaseVectorTypeT:
+        scaled_x, scaled_y, scaled_z = self.x / scalar, self.y / scalar, self.z / scalar
+        return self.__class__(self.frame, scaled_x, scaled_y, scaled_z)
+
 
 class Orientation(BaseAngleType):
     """An orientation specified in RPY with angles in degrees. Naively considers inputs
@@ -434,8 +438,16 @@ class Twist:
     def __add__(self, other: Twist) -> Twist:
         return Twist(self.velocity + other.velocity, self.spin + other.spin)
 
+    def __truediv__(self, scalar: float) -> Twist:
+        return Twist(self.velocity / scalar, self.spin / scalar)
+
     def to_2d(self) -> Twist:
         return Twist(self.velocity.to_2d(), self.spin.to_2d())
+
+    def is_close(self, other: Twist, *, atol: float = _DEFAULT_ATOL) -> bool:
+        return self.velocity.is_close(other.velocity, atol=atol) and self.spin.is_close(
+            other.spin, atol=atol
+        )
 
     def update_frame(self, frame: frames.ReferenceFrame) -> None:
         """Changes this object's frame."""

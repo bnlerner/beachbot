@@ -16,7 +16,8 @@ class NavProgressTracker:
         self._cur_point_ix = 1
 
         self._target_speed = (
-            self.current_navpoint.driving_direction * constants.MAX_LINEAR_SPEED
+            # TODO: Move slow for now until we gain confidence in the system.
+            self.current_navpoint.driving_direction * constants.MAX_LINEAR_SPEED * 0.1
         )
         self._cached_ref_pose_2d: geometry.Pose
 

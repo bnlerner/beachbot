@@ -1,9 +1,10 @@
-import collections
-from typing import DefaultDict, Optional
+from typing import Optional
 
 import geometry
-from config import robot_config
-from ipc import messages
+import log
+from ipc import messages, session
+from models import twist_estimator
+from typing_helpers import req
 
 from localization import gps_transformer, primitives
 
@@ -14,16 +15,17 @@ _DEFAULT_UTM_ZONE = primitives.UTMZone(
 
 
 class Localizer:
-    """Calculates the kinematics of the robot."""
+    """Localizes the robot in the UTM frame using GNSS and INS data, calculating the
+    vehicle kinematics such as position, orientation, velocity and angular velocity.
+    """
 
     def __init__(self, utm_zone: primitives.UTMZone = _DEFAULT_UTM_ZONE):
         self._imu_message: Optional[messages.IMUMessage] = None
         self._gnss_message: Optional[messages.GNSSMessage] = None
-        self._motor_velocities: DefaultDict[
-            robot_config.DrivetrainLocation, float
-        ] = collections.defaultdict(lambda: 0.0)
 
         self._gps_transformer = gps_transformer.GPSTransformer(utm_zone)
+        config = session.get_robot_config()
+        self._twist_estimator = twist_estimator.TwistEstimator(config)
 
     def input_gnss_msg(self, msg: messages.GNSSMessage) -> None:
         self._gnss_message = msg
@@ -32,7 +34,7 @@ class Localizer:
         self._imu_message = msg
 
     def input_motor_vel_msg(self, msg: messages.MotorVelocityMessage) -> None:
-        self._motor_velocities[msg.motor.location] = msg.estimated_velocity
+        self._twist_estimator.update(msg.motor.location, msg.estimated_velocity)
 
     def reset(self) -> None:
         self._imu_message = None
@@ -40,73 +42,72 @@ class Localizer:
 
     def vehicle_kin_msg(self) -> Optional[messages.VehicleKinematicsMessage]:
         if self._gnss_message is not None and self._imu_message is not None:
-            position = self._gps_transformer.transform_position(
-                self._gnss_message.longitude,
-                self._gnss_message.latitude,
-                ellipsoid_height=self._gnss_message.ellipsoid_height,
-            )
-            yaw = self._gps_transformer.transform_heading(
-                self._gnss_message.longitude,
-                self._gnss_message.latitude,
-                self._gnss_message.heading,
-            )
-            orientation = self._calc_orientation(
-                self._imu_message.roll, self._imu_message.pitch, yaw
-            )
-            pose = geometry.Pose(position, orientation)
-            velocity = self._calc_velocity(self._gnss_message.ned_velocity, orientation)
-            angular_velocity = self._imu_message.angular_velocity
-            return messages.VehicleKinematicsMessage(
-                pose=pose, twist=geometry.Twist(velocity, angular_velocity)
-            )
+            pose = self._calc_pose()
+            twist = self._calc_twist(pose.orientation)
+            return messages.VehicleKinematicsMessage(pose=pose, twist=twist)
+        else:
+            return None
 
-        return None
+    def _calc_pose(self) -> geometry.Pose:
+        gnss_msg = req(self._gnss_message)
+        imu_msg = req(self._imu_message)
+        position = self._gps_transformer.transform_position(
+            gnss_msg.longitude,
+            gnss_msg.latitude,
+            ellipsoid_height=gnss_msg.ellipsoid_height,
+        )
+        yaw = self._gps_transformer.transform_heading(
+            gnss_msg.longitude, gnss_msg.latitude, gnss_msg.heading
+        )
+        orientation = self._calc_orientation(imu_msg.roll, imu_msg.pitch, yaw)
+        return geometry.Pose(position, orientation)
 
     def _calc_orientation(
         self, roll: float, pitch: float, yaw: float
     ) -> geometry.Orientation:
+        # NOTE: z-axis is pointed downward, x-axis forward and y-axis to the right side
+        # to the vehicle. Effectively this RPY is rolled 180 deg from the BODY frame.
         veh_ori = geometry.Orientation.from_intrinsic_rpy(
             geometry.UTM, roll, pitch, 0.0
         )
         roll, pitch = veh_ori.roll, veh_ori.pitch
         return geometry.Orientation(geometry.UTM, roll, pitch, yaw)
 
-    # TODO: Integrate for sensor fusion.
-    def _calc_velocity(
-        self, utm_velocity: geometry.Velocity, veh_ori: geometry.Orientation
-    ) -> geometry.Velocity:
-        """Calculates the vehicle velocity."""
-        veh_velocity = utm_velocity.rotated(
-            veh_ori.as_rotation().inverted(), intrinsic=False
-        )
-        veh_velocity.frame = geometry.VEHICLE
-
-        return veh_velocity
-
-    def _motor_wheel_twist(self) -> geometry.Twist:
-        """The twist in the robots body frame expressed as two floats of a linear and
-        angular velocity.
+    def _calc_twist(self, body_ori: geometry.Orientation) -> geometry.Twist:
+        """Calculates the current vehicle twist based on wheel velocity and data coming
+        from the ublox module.
         """
-        # TODO: Break this out into a helper file with unit tests.
-        front_left_vel = self._motor_velocities[
-            robot_config.DrivetrainLocation.FRONT_LEFT
-        ]
-        front_right_vel = self._motor_velocities[
-            robot_config.DrivetrainLocation.FRONT_RIGHT
-        ]
-        rear_left_vel = self._motor_velocities[
-            robot_config.DrivetrainLocation.REAR_LEFT
-        ]
-        rear_right_vel = self._motor_velocities[
-            robot_config.DrivetrainLocation.REAR_RIGHT
-        ]
+        velocity = self._calc_velocity(req(self._gnss_message).ned_velocity, body_ori)
+        angular_velocity = self._calc_angular_velocity(
+            req(self._imu_message).angular_velocity
+        )
+        sensor_measured_twist = geometry.Twist(velocity, angular_velocity)
+        wheel_est_twist = self._twist_estimator.twist()
 
-        left_vel = (front_left_vel + rear_left_vel) / 2
-        right_vel = (front_right_vel + rear_right_vel) / 2
+        # TODO: Remove onces twist is validated correct. Possibly also once sensor
+        # fusion for position / velocity is complete.
+        if not wheel_est_twist.is_close(sensor_measured_twist):
+            log.info(f"Twists: \n\t{wheel_est_twist=}\n\t{sensor_measured_twist=}")
 
-        speed = (right_vel - left_vel) / 2
-        linear_velocity = geometry.Velocity(geometry.BODY, speed, 0, 0)
-        angular_speed = (right_vel + left_vel) / 2
-        angular_velocity = geometry.AngularVelocity(geometry.BODY, 0, 0, angular_speed)
+        return sensor_measured_twist
 
-        return geometry.Twist(linear_velocity, angular_velocity)
+    def _calc_velocity(
+        self, utm_velocity: geometry.Velocity, body_ori: geometry.Orientation
+    ) -> geometry.Velocity:
+        """Calculates the robots's velocity in BODY frame."""
+        body_velocity = utm_velocity.rotated(
+            body_ori.as_rotation().inverted(), intrinsic=False
+        )
+        body_velocity.frame = geometry.BODY
+
+        return body_velocity
+
+    def _calc_angular_velocity(
+        self, imu_spin: geometry.AngularVelocity
+    ) -> geometry.AngularVelocity:
+        """Calculates the body angular velocity. Since the sensor is rolled 180 relative
+        to the BODY frame, the y and z angular speed's signs are flipped.
+        """
+        return geometry.AngularVelocity(
+            geometry.BODY, imu_spin.x, -imu_spin.y, -imu_spin.z
+        )

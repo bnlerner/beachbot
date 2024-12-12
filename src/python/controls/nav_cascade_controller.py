@@ -1,4 +1,5 @@
 import geometry
+import log
 from config import robot_config
 from planning import nav_vel_target_generator, primitives
 
@@ -30,6 +31,7 @@ class NavCascadeController:
         target_twist = self._target_generator.gen_twist(
             navpoint.signed_turn_radius, reference_speed, target_in_body
         )
+        log.data(target_twist=target_twist, cur_twist=cur_twist)
         self._controller.update(target_twist, cur_twist)
 
     def velocity(self, motor: robot_config.Motor) -> float:

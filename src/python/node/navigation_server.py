@@ -48,11 +48,7 @@ class NavigationServer(base_node.BaseNode):
         self, request: messages.NavigateRequest
     ) -> Literal["success", "fail"]:
         await self._wait_for_kinematics()
-        self._path = self._nav_planner.gen_path(req(self._cur_pose), request.target)
-        self._nav_progress_tracker = nav_progress_tracker.NavProgressTracker(self._path)
-        self._controller = nav_cascade_controller.NavCascadeController(
-            self._robot_config
-        )
+        self._initialize_planning_and_control(request)
         self._request = request
         try:
             await self._wait_for_nav_finished()
@@ -75,7 +71,7 @@ class NavigationServer(base_node.BaseNode):
 
     async def _wait_for_nav_finished(self) -> None:
         while self._request is not None:
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.1)
 
     def _run_control_loop(self) -> None:
         if self._request is None:
@@ -89,11 +85,19 @@ class NavigationServer(base_node.BaseNode):
         self._update_controller()
         self._publish_motor_cmd_msgs()
 
+    def _initialize_planning_and_control(
+        self, request: messages.NavigateRequest
+    ) -> None:
+        self._path = self._nav_planner.gen_path(req(self._cur_pose), request.target)
+        self._nav_progress_tracker = nav_progress_tracker.NavProgressTracker(self._path)
+        self._controller = nav_cascade_controller.NavCascadeController(
+            self._robot_config
+        )
+
     def _publish_motor_cmd_msgs(self) -> None:
         # Reset each motor integral if we reach a cusp point.
         reset_integral = self._nav_progress_tracker.current_navpoint.is_cusp_point
         for motor in self._motors:
-            # TODO: how to get torque and velocity?
             velocity = self._controller.velocity(motor)
             msg = messages.MotorCommandMessage(
                 motor=motor, velocity=velocity, reset_integral=reset_integral
@@ -103,7 +107,15 @@ class NavigationServer(base_node.BaseNode):
 
     def _check_and_replan(self) -> None:
         """Verifies if a replan is necessary and replans."""
-        pass
+        if self._nav_progress_tracker.is_off_nav_path():
+            log.error(
+                "Too far away from nav path \n"
+                f"\t{self._cur_pose=}\n\t{self._cur_twist=}\n"
+                f"\t{self._path.end=}\n\t{self._path.start=}"
+            )
+            # TODO: Eventually add a replanning step but for now we stop the nav if its
+            # far off target.
+            self._request = None
 
     def _update_controller(self) -> None:
         self._nav_progress_tracker.update(req(self._cur_pose))

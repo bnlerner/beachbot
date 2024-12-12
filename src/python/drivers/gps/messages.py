@@ -19,21 +19,21 @@ class UbloxPVTMessage(pydantic.BaseModel):
     # Both in degrees with scaling 1e-7
     longitude: float
     latitude: float
-    # height above the ellipsoid in mm
+    # height above the ellipsoid in m
     ellipsoid_height: float
-    # Height above mean sea level in mm
+    # Height above mean sea level in m
     height_above_sea_level: float
-    # horizontal accuracy in mm
+    # horizontal accuracy in m
     h_acc: float
-    # Vertical accuracy in mm
+    # Vertical accuracy in m
     v_acc: float
-    # North velocity (mm/s) in NED convention
+    # North velocity (m/s) in NED convention
     north_velocity: float
-    # East velocity (mm/s) in NED convention
+    # East velocity (m/s) in NED convention
     east_velocity: float
-    # Down velocity (mm/s) in NED convention
+    # Down velocity (m/s) in NED convention
     down_velocity: float
-    # Ground speed (mm/s) in 2D
+    # Ground speed (m/s) in 2D
     ground_speed: float
     # Heading of the vehicle. Set to the same value as heading of motion if receiver is
     # not in sensor fusion mode.
@@ -52,14 +52,15 @@ class UbloxPVTMessage(pydantic.BaseModel):
             num_satellites=msg.numSV,
             longitude=msg.lon,
             latitude=msg.lat,
-            ellipsoid_height=msg.height,
-            height_above_sea_level=msg.hMSL,
-            h_acc=msg.hAcc,
-            v_acc=msg.vAcc,
-            north_velocity=msg.velN,
-            east_velocity=msg.velE,
-            down_velocity=msg.velD,
-            ground_speed=msg.gSpeed,
+            # Convert from mm to m as these are reported in mm in the ublox module.
+            ellipsoid_height=msg.height / 1000,
+            height_above_sea_level=msg.hMSL / 1000,
+            h_acc=msg.hAcc / 1000,
+            v_acc=msg.vAcc / 1000,
+            north_velocity=msg.velN / 1000,
+            east_velocity=msg.velE / 1000,
+            down_velocity=msg.velD / 1000,
+            ground_speed=msg.gSpeed / 1000,
             heading_of_vehicle=msg.headVeh,
             heading_of_motion=msg.headMot,
             heading_acc=msg.hAcc,
