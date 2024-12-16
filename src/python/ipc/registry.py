@@ -41,6 +41,7 @@ class Channels(SimpleNamespace):
         channel="rear_right_motor_velocity"
     )
     STOP_MOTORS = core.ChannelSpec[messages.StopMotorsMessage](channel="stop_motors")
+    TEST = core.ChannelSpec[messages.MotorCommandMessage](channel="test")
 
 
 class Requests(SimpleNamespace):
@@ -56,6 +57,8 @@ class NodeIDs(SimpleNamespace):
     MOTOR_CONTROL = core.NodeID(name="motor_control")
     NAVIGATION = core.NodeID(name="navigation")
     RC = core.NodeID(name="rc")
+    TEST0 = core.NodeID(name="test0")
+    TEST1 = core.NodeID(name="test1")
     UI = core.NodeID(name="ui")
 
 

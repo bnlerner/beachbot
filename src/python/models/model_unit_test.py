@@ -1,11 +1,12 @@
 import math
 
+import geometry
 import pytest
 from config import robot_config
 from ipc import session
 
 from models import body_model, constants, twist_estimator
-import geometry
+
 
 @pytest.fixture
 def model() -> body_model.BodyModel:
@@ -30,19 +31,37 @@ def test_tracking(
     linear_speed: float,
     angular_speed: float,
 ) -> None:
-    model.update(linear_speed, angular_speed)
+    model.set_target(linear_speed, angular_speed)
     motors = session.get_robot_motors()
     for motor in motors:
-        wheel_speed = model.velocity(motor)
+        wheel_speed = model.wheel_speed(motor)
         expected_speed = _calc_wheel_velocity(motor, linear_speed, angular_speed)
         assert expected_speed == wheel_speed
-        estimator.update(motor.location, wheel_speed)
+        estimator.update(motor, wheel_speed)
 
     est_twist = estimator.twist()
     expected_velocity = geometry.Velocity(geometry.BODY, linear_speed, 0, 0)
     assert est_twist.velocity.is_close(expected_velocity)
     expected_spin = geometry.AngularVelocity(geometry.BODY, 0, 0, angular_speed)
     assert est_twist.spin.is_close(expected_spin)
+
+
+def test_feedforward_torque(model: body_model.BodyModel) -> None:
+    model.set_target(0.0, 10.0)
+    feedforward = model.feedforward_torque()
+    assert feedforward == constants.TURNING_STATIC_FRICTION_TORQUE
+    wheel_speed = model.wheel_speed(session.get_robot_motors()[0])
+    assert geometry.sign(wheel_speed) == geometry.sign(feedforward)
+
+    model.set_target(0.0, -10.0)
+    feedforward = model.feedforward_torque()
+    assert feedforward == -constants.TURNING_STATIC_FRICTION_TORQUE
+    wheel_speed = model.wheel_speed(session.get_robot_motors()[0])
+    assert geometry.sign(wheel_speed) == geometry.sign(feedforward)
+
+    model.set_target(2.0, 10.0)
+    feedforward = model.feedforward_torque()
+    assert feedforward == 0.0
 
 
 def _calc_wheel_velocity(

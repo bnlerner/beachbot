@@ -24,8 +24,9 @@ _TURN_LEFT = geometry.Twist(
 
 @pytest.fixture
 def controller() -> nav_velocity_controller.NavVelocityController:
+    motors = session.get_robot_motors()
     config = session.get_robot_config()
-    return nav_velocity_controller.NavVelocityController(config)
+    return nav_velocity_controller.NavVelocityController(motors, config)
 
 
 def test_zero_twist(controller: nav_velocity_controller.NavVelocityController) -> None:
@@ -72,7 +73,7 @@ def test_increases_linearly(
         t = ix * _PERIOD
         with mock.patch("time.perf_counter", mock.MagicMock(return_value=t)):
             controller.update(_FORWARD, _STOPPED)
+            vel = controller.velocity(motor)
 
-        vel = controller.velocity(motor)
         assert vel > prev_vel
         prev_vel = vel

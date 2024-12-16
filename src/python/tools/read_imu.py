@@ -1,10 +1,17 @@
 import math
+import os
+import sys
 import time
 
 import adafruit_bno08x  # type:ignore[import-untyped]
 import board  # type:ignore[import-untyped]
 import busio  # type:ignore[import-untyped]
 from adafruit_bno08x.i2c import BNO08X_I2C  # type:ignore[import-untyped]
+
+# Get the path to the root of the project
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import geometry
 
 
 def find_heading(dqw: float, dqx: float, dqy: float, dqz: float) -> float:
@@ -52,6 +59,19 @@ def main() -> None:
             print("X: %0.6f  Y: %0.6f Z: %0.6f rads/s" % (gyro_x, gyro_y, gyro_z))
             print("")
             quat_i, quat_j, quat_k, quat_real = bno.quaternion
+            roll, pitch, yaw = geometry.quaternion_to_euler(
+                quat_real, quat_i, quat_j, quat_k
+            )
+            imu_roll_mount_offset: float = -0.4
+            imu_pitch_mount_offset: float = 2.65
+            veh_ori = geometry.Orientation(
+                geometry.VEHICLE,
+                roll + imu_roll_mount_offset,
+                pitch + imu_pitch_mount_offset,
+                yaw,
+            )
+            body_ori = veh_ori.rotated(geometry.VEH_TO_BODY_ROT)
+            print(f"RPY: {body_ori=}")
             heading = find_heading(quat_real, quat_i, quat_j, quat_k)
             print("Heading using rotation vector:", heading)
 

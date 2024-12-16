@@ -1,5 +1,5 @@
 import math
-from typing import Literal
+from typing import Collection, Literal
 
 import numba as nb  # type: ignore[import-untyped]
 import numpy as np
@@ -9,12 +9,33 @@ _F64_VECTOR = nb.types.Array(nb.types.float64, 1, "C")
 
 
 def sign(val: float) -> Literal[-1, 0, 1]:
+    """The sign of the value. Similar but faster to np or math sign."""
     if val > 0.0:
         return 1
     elif val < 0.0:
         return -1
     else:
         return 0
+
+
+def linear_ramp(val: float, width: float = 1) -> float:
+    """A ramped value by the width between 0 and 1."""
+    return clip(val / width, 0.0, 1.0)
+
+
+def clip(val: float, lower: float, upper: float) -> float:
+    """Clips the value between the lower and upper."""
+    if val < lower:
+        return lower
+    elif val > upper:
+        return upper
+    else:
+        return val
+
+
+def mean(values: Collection[float]) -> float:
+    """The mean of the values."""
+    return sum(values) / len(values)
 
 
 def wrap_degrees(angle: float) -> float:

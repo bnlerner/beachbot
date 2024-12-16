@@ -24,11 +24,11 @@ class KeyboardRCController:
         self._pressed_keys[key] = pressed
         linear_vel = self._linear_velocity()
         angular_vel = self._angular_velocity()
-        self._body_model.update(linear_vel, angular_vel)
+        self._body_model.set_target(linear_vel, angular_vel)
 
     def velocity(self, motor: robot_config.Motor) -> float:
         """The motor velocity in turns / s to achieve the current RC key presses."""
-        return self._body_model.velocity(motor)
+        return self._body_model.wheel_speed(motor)
 
     def _angular_velocity(self) -> float:
         """Angular velocity assuming that the velocity rotates about the robots body axis which would be with

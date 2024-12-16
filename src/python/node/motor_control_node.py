@@ -21,7 +21,7 @@ _CLOSED_LOOP_STATE = odrive_enums.AxisState.CLOSED_LOOP_CONTROL
 _WATCHDOG_EXPIRY = odrive_enums.ODriveError.WATCHDOG_TIMER_EXPIRED
 _NO_ERROR = odrive_enums.ODriveError.NONE
 _VEL_PUB_RATE = 50  # Roughly publish at 50 hz or 20 ms
-_MOTOR_CMD_PUB_RATE = 50  # Roughly publish at 50 hz or 20 ms
+_MOTOR_CMD_PUB_RATE = 100  # Roughly publish at 100 hz or 10 ms
 _INTEGRATOR_PATH = "axis0.controller.vel_integrator_torque"
 
 
@@ -93,6 +93,15 @@ class MotorControlNode(base_node.BaseNode):
             await self._set_axis_state(
                 motor.node_id, odrive_enums.AxisState.CLOSED_LOOP_CONTROL
             )
+            # Sets the control mode to velocity control using a passthrough or immediate
+            # set of the input velocity and torque. Doing this allows more control of
+            # the motor behavior. Feedforward torque control was found to only work when
+            # using passthrough control.
+            await self._set_controller_mode(
+                motor.node_id,
+                odrive_enums.ControlMode.VELOCITY_CONTROL,
+                odrive_enums.InputMode.PASSTHROUGH,
+            )
 
     def _publish_velocity(self) -> None:
         for motor in self._motor_configs:
@@ -115,12 +124,24 @@ class MotorControlNode(base_node.BaseNode):
                         motor=motor, velocity=0.0
                     )
                     await self._send_motor_cmd(no_vel_msg)
+                    await self._reset_motor_integral(msg.motor.node_id)
 
     async def _set_axis_state(
         self, node_id: int, axis_state: odrive_enums.AxisState
     ) -> None:
         axis_msg = can_messages.SetAxisStateMessage(node_id, axis_state=axis_state)
         await self._can_bus.send(axis_msg)
+
+    async def _set_controller_mode(
+        self,
+        node_id: int,
+        control_mode: odrive_enums.ControlMode,
+        input_mode: odrive_enums.InputMode,
+    ) -> None:
+        msg = can_messages.SetControllerMode(
+            node_id, control_mode=control_mode, input_mode=input_mode
+        )
+        await self._can_bus.send(msg)
 
     def _set_motor_cmd(self, msg: ipc_messages.MotorCommandMessage) -> None:
         self._motor_vel_cmd[msg.motor.node_id] = msg

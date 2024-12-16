@@ -15,7 +15,9 @@ from typing_helpers import req
 
 from node import base_node
 
-_CONTROL_RATE = 50  # In Hz
+# Rates to update the controller and publishing in Hz.
+_CONTROL_RATE = 50
+_PUBLISH_RATE = 100
 
 
 class NavigationServer(base_node.BaseNode):
@@ -42,7 +44,12 @@ class NavigationServer(base_node.BaseNode):
             registry.Channels.MOTOR_CMD_REAR_RIGHT,
         )
         self.set_request_server(registry.Requests.NAVIGATE, self._rcv_request)
-        self.add_looped_tasks({self._run_control_loop: _CONTROL_RATE})
+        self.add_looped_tasks(
+            {
+                self._run_update_control_loop: _CONTROL_RATE,
+                self._publish_motor_cmd_msgs: _PUBLISH_RATE,
+            }
+        )
 
     async def _rcv_request(
         self, request: messages.NavigateRequest
@@ -73,8 +80,8 @@ class NavigationServer(base_node.BaseNode):
         while self._request is not None:
             await asyncio.sleep(0.1)
 
-    def _run_control_loop(self) -> None:
-        if self._request is None:
+    def _run_update_control_loop(self) -> None:
+        if not self._is_active_request():
             return
 
         if self._nav_progress_tracker.is_finished():
@@ -83,7 +90,6 @@ class NavigationServer(base_node.BaseNode):
 
         self._check_and_replan()
         self._update_controller()
-        self._publish_motor_cmd_msgs()
 
     def _initialize_planning_and_control(
         self, request: messages.NavigateRequest
@@ -91,19 +97,29 @@ class NavigationServer(base_node.BaseNode):
         self._path = self._nav_planner.gen_path(req(self._cur_pose), request.target)
         self._nav_progress_tracker = nav_progress_tracker.NavProgressTracker(self._path)
         self._controller = nav_cascade_controller.NavCascadeController(
-            self._robot_config
+            self._motors, self._robot_config
         )
 
     def _publish_motor_cmd_msgs(self) -> None:
+        if not self._is_active_request():
+            return
+
         # Reset each motor integral if we reach a cusp point.
         reset_integral = self._nav_progress_tracker.current_navpoint.is_cusp_point
+        feedforward_torque = self._controller.feedforward_torque()
         for motor in self._motors:
             velocity = self._controller.velocity(motor)
             msg = messages.MotorCommandMessage(
-                motor=motor, velocity=velocity, reset_integral=reset_integral
+                motor=motor,
+                velocity=velocity,
+                reset_integral=reset_integral,
+                feedforward_torque=feedforward_torque,
             )
             channel = registry.motor_command_channel(motor)
             self.publish(channel, msg)
+
+    def _is_active_request(self) -> bool:
+        return self._request is not None
 
     def _check_and_replan(self) -> None:
         """Verifies if a replan is necessary and replans."""

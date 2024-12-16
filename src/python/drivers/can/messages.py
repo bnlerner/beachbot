@@ -434,7 +434,7 @@ class SetControllerMode(OdriveCanMessage):
     #     velocity, acceleration and deceleration. Only works with position control.
     #   - Torque Ramp (6): Ramps a torque command from the current value to the target value. Configured via the
     #     torque ramp rate.
-    input_mode: odrive_enums.InputMode = odrive_enums.InputMode.PASSTHROUGH
+    input_mode: odrive_enums.InputMode
 
     def _gen_can_msg_data(self) -> bytes:
         return struct.pack("<II", self.control_mode.value, self.input_mode.value)

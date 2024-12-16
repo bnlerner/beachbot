@@ -1,8 +1,10 @@
+from typing import List
+
 import geometry
 from config import robot_config
 from models import body_model
 
-from controls import pid_controller
+from controls import motor_velocity_controller, pid_controller
 
 _LINEAR_P_GAIN = 0.3
 _LINEAR_I_GAIN = 0.5
@@ -15,13 +17,18 @@ class NavVelocityController:
     a target and measured twist and outputs the motor velocities needed to achieve them.
     """
 
-    def __init__(self, config: robot_config.Beachbot) -> None:
+    def __init__(
+        self, motors: List[robot_config.Motor], config: robot_config.Beachbot
+    ) -> None:
         self._body_model = body_model.BodyModel(config)
         self._linear_pi_control = pid_controller.PIDController(
             _LINEAR_P_GAIN, _LINEAR_I_GAIN
         )
         self._angular_pi_control = pid_controller.PIDController(
             _ANGULAR_P_GAIN, _ANGULAR_I_GAIN
+        )
+        self._motor_vel_control = motor_velocity_controller.MotorVelocityController(
+            motors, config
         )
 
     def update(self, target: geometry.Twist, measured: geometry.Twist) -> None:
@@ -33,11 +40,14 @@ class NavVelocityController:
         linear_speed = target.velocity.x + linear_vel_fb
         angular_speed = target.spin.z + angular_vel_fb
 
-        self._body_model.update(linear_speed, angular_speed)
+        self._motor_vel_control.set_target(linear_speed, angular_speed)
 
     def velocity(self, motor: robot_config.Motor) -> float:
         """Motor velocity in turns/s to achieve the control inputs."""
-        return self._body_model.velocity(motor)
+        return self._motor_vel_control.calc_wheel_speed(motor)
+
+    def feedforward_torque(self) -> float:
+        return self._motor_vel_control.calc_feedforward_torque()
 
     def reset(self) -> None:
         self._linear_pi_control.reset()

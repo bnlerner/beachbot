@@ -22,3 +22,10 @@ wrap_degrees = math_helpers.wrap_degrees
 sign = math_helpers.sign
 quaternion_to_euler = math_helpers.quaternion_to_euler
 euler_to_quaternion = math_helpers.euler_to_quaternion
+linear_ramp = math_helpers.linear_ramp
+clip = math_helpers.clip
+mean = math_helpers.mean
+
+
+# Some common conversions.
+VEH_TO_BODY_ROT = Rotation(UTM, 180, 0, 0)

@@ -21,9 +21,7 @@ class IMUMessage(core.BaseMessage):
 
     roll: float
     pitch: float
-    heading: float
     angular_velocity: geometry.AngularVelocity
-    acceleration: geometry.Acceleration
     is_calibrated: bool
 
 

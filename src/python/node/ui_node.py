@@ -12,9 +12,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import log
 import system_info
+from controls import motor_velocity_controller
 from ipc import core, messages, registry, session
 from localization import gps_transformer, primitives
-from models import body_model, constants
+from models import constants
 
 from node import base_node
 
@@ -24,6 +25,7 @@ _DEFAULT_UTM_ZONE = primitives.UTMZone(
 )
 _STATIC_RESOURCE_PATH = system_info.get_root_project_directory() / "env" / "static"
 _CLIENT_TIMEOUT = 10  # timeout in seconds
+_CONTROL_RATE = 100  # In Hz
 
 
 class UINode(base_node.BaseNode):
@@ -37,10 +39,12 @@ class UINode(base_node.BaseNode):
         self._debug = debug
         self._gps_transformer = gps_transformer.GPSTransformer(_DEFAULT_UTM_ZONE)
         self._motor_configs = session.get_robot_motors()
-        self._rc_controller = body_model.BodyModel(session.get_robot_config())
-        self._stop_robot: bool = True
+        self._controller = motor_velocity_controller.MotorVelocityController(
+            session.get_robot_motors(), session.get_robot_config()
+        )
         self._nav_task: Optional[asyncio.Task] = None
         self._client_sessions: Dict[str, float] = {}
+        self._cur_tab: Optional[str] = None
 
         self.add_publishers(
             registry.Channels.MOTOR_CMD_FRONT_LEFT,
@@ -66,23 +70,23 @@ class UINode(base_node.BaseNode):
             ),
         ]
         self.set_http_server(self._port, routes)
+        self.add_looped_tasks({self._publish_rc_cmd_msgs: _CONTROL_RATE})
 
     async def _tab_switch(self, request: requests.Request) -> responses.Response:
         if (data := await self._extract_data_from_request(request)) is None:
             return responses.JSONResponse({"status": "Invalid client request."}, 409)
 
-        tab_name = self._get_tab_name(data)
-        log.info(f"Switched to tab: {tab_name}")
-        self._cancel_nav_if_on_wrong_tab(tab_name)
+        self._cur_tab = self._get_tab_name(data)
+        log.info(f"Switched to tab: {self._cur_tab}")
+        self._cancel_nav_if_on_wrong_tab()
         # You can perform additional actions here based on the tab change
-        return responses.JSONResponse({"status": "success", "tab": tab_name}, 200)
+        return responses.JSONResponse({"status": "success", "tab": self._cur_tab}, 200)
 
     async def _rc_input(self, request: requests.Request) -> responses.Response:
         if (data := await self._extract_data_from_request(request)) is None:
             return responses.JSONResponse({"status": "Invalid client request."}, 409)
 
         self._update_rc_controller(data)
-        self._publish_rc_cmd_msgs()
         return responses.JSONResponse(
             {"status": "success", "message": "Data received"}, 201
         )
@@ -144,14 +148,14 @@ class UINode(base_node.BaseNode):
         y: float = eval(y_str) if (y_str := data.get("y")) else 0.0
 
         # NOTE: Order not guaranteed, ensures that we stop before moving again.
-        self._stop_robot = bool(data.get("stop")) or False
-        if not isinstance(self._stop_robot, bool):
-            raise ValueError(f"Unexpected stop robot type {self._stop_robot=}")
+        stop_robot = bool(data.get("stop")) or False
+        if not isinstance(stop_robot, bool):
+            raise ValueError(f"Unexpected stop robot type {stop_robot=}")
 
-        linear_velocity = constants.MAX_LINEAR_SPEED * y * 0.5
+        linear_velocity = 0.0 if stop_robot else constants.MAX_LINEAR_SPEED * y * 0.5
         # Negative since positive spin is to the left.
-        angular_velocity = constants.MAX_ANGULAR_SPEED * -x
-        self._rc_controller.update(linear_velocity, angular_velocity)
+        angular_velocity = 0.0 if stop_robot else constants.MAX_ANGULAR_SPEED * -x
+        self._controller.set_target(linear_velocity, angular_velocity)
 
     async def _navigate_to_target(self, nav_request: core.Request) -> Optional[str]:
         """Navigates to the target, returning a message if it does not sucdeed."""
@@ -172,11 +176,15 @@ class UINode(base_node.BaseNode):
             raise ValueError(f"Unexpected response. {response=}")
 
     def _publish_rc_cmd_msgs(self) -> None:
+        # Only publish RC commands if on the RC tab.
+        if self._cur_tab and self._cur_tab != "rc_tab":
+            return None
+
         for motor in self._motor_configs:
-            velocity = 0.0 if self._stop_robot else self._rc_controller.velocity(motor)
-            # Sets the integrator torque to zero during a stop event.
             msg = messages.MotorCommandMessage(
-                motor=motor, velocity=velocity, reset_integral=self._stop_robot
+                motor=motor,
+                velocity=self._controller.calc_wheel_speed(motor),
+                feedforward_torque=self._controller.calc_feedforward_torque(),
             )
             channel = registry.motor_command_channel(motor)
             self.publish(channel, msg)
@@ -265,16 +273,15 @@ class UINode(base_node.BaseNode):
 
         return data
 
-    def _cancel_nav_if_on_wrong_tab(self, tab_name: str) -> None:
-        if tab_name == "rc_tab":
+    def _cancel_nav_if_on_wrong_tab(self) -> None:
+        if self._cur_tab == "rc_tab":
             if self._nav_task is not None:
-                # cancel request
+                # Cancel nav request
                 log.info("Cancelling existing nav task to allow RC.")
                 self._nav_task.cancel()
-        elif tab_name == "autonomous_tab":
+        elif self._cur_tab == "autonomous_tab":
             if self._nav_task is None:
-                # stop publishing RC and publish zero?
-                self._rc_controller.update(0.0, 0.0)
+                self._controller.set_target(0.0, 0.0)
             else:
                 # If a nav task exists when switching tabs cancel it. Should not happen.
                 log.error(
@@ -282,7 +289,7 @@ class UINode(base_node.BaseNode):
                 )
                 self._nav_task.cancel()
         else:
-            raise ValueError(f"Unexpected tab name {tab_name=}")
+            raise ValueError(f"Unexpected tab name {self._cur_tab=}")
 
     async def shutdown_hook(self) -> None:
         if self._nav_task is not None:

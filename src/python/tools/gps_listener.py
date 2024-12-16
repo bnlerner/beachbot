@@ -21,10 +21,13 @@ def run() -> None:
         print("Listening for UBX Messages.")
         while True:
             start = time.perf_counter()
+            print(f"Auto messages, {gps.cls_ms_auto=}")
             # Position, Velocity and Time message.
             if coords := gps.geo_coords():
                 pvt_msg = messages.UbloxPVTMessage.from_ublox_message(coords)
                 print(f"{pvt_msg=}\n")
+            if cov := gps.wait_packet("NAV", "COV", 2500):
+                print(f"{cov=}")
             # if veh_att := gps.veh_attitude():
             #     att_msg = messages.UbloxATTMessage.from_ublox_message(veh_att)
             #     print(f"{att_msg=}\n")

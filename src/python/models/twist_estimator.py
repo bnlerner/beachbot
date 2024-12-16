@@ -33,8 +33,8 @@ class TwistEstimator:
     def _rear_right_velocity(self) -> float:
         return self._motor_velocities[robot_config.DrivetrainLocation.REAR_RIGHT]
 
-    def update(self, motor: robot_config.DrivetrainLocation, velocity: float) -> None:
-        self._motor_velocities[motor] = velocity
+    def update(self, motor: robot_config.Motor, velocity: float) -> None:
+        self._motor_velocities[motor.location] = velocity
 
     def twist(self) -> geometry.Twist:
         """The estimated twist in the robots body frame base on the wheel velocities."""

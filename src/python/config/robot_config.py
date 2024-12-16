@@ -113,6 +113,9 @@ class Beachbot(pydantic.BaseModel):
     inner_axle_wheel_distance: float = 0.393
     # The distance between the two "axles" of the drivetrain.
     wheel_base: float = 0.405
+    # Amount of IMU mount offset in beachbot
+    imu_roll_mount_offset: float = -0.4
+    imu_pitch_mount_offset: float = 2.65
 
     @property
     def track_width(self) -> float:

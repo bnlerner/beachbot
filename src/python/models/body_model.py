@@ -1,8 +1,13 @@
 import math
 
+import geometry
 from config import robot_config
 
 from models import constants
+
+# The linear speed at which feedforward compensation is no longer needed to achieve the
+# angular speed target.
+_FEEDFORWARD_LINEAR_SPEED_CUT_OFF = 2.0
 
 
 class BodyModel:
@@ -16,16 +21,16 @@ class BodyModel:
         self._linear_speed: float = 0.0
         self._angular_speed: float = 0.0
 
-    def update(self, linear_speed: float, angular_speed: float) -> None:
-        """Updates the linear and angular velocities to target in the generator.
-        Velocities are expressed in m/s and deg/s.
+    def set_target(self, linear_speed: float, angular_speed: float) -> None:
+        """Sets the target linear velocity (m/s) and angular velocity (deg/s) in the
+        model.
         """
         self._linear_speed = linear_speed
         self._angular_speed = angular_speed
 
-    def velocity(self, motor: robot_config.Motor) -> float:
-        """The motor velocity to target to achieve the stored linear and angular
-        velocity targets.
+    def wheel_speed(self, motor: robot_config.Motor) -> float:
+        """The motor wheel speed (turns/s) to target to achieve the stored linear and
+        angular velocity targets.
         """
         tangential_speed = self._wheel_tangential_speed(self._angular_speed)
         # The velocity direction relative to the mount point on the chassis.
@@ -37,6 +42,23 @@ class BodyModel:
             tread_speed = tangential_speed + self._linear_speed
 
         return self._convert_tread_velocity_to_motor_velocity(tread_speed)
+
+    def feedforward_torque(self) -> float:
+        """The feedforward torque required to compensate for turning at low linear speeds.
+        When strictly counterrotating, the friction of the wheels to the ground must be
+        overcome to achieve the target speed.
+        """
+        # Not needed if not turning
+        if self._angular_speed == 0.0:
+            return 0.0
+
+        # Sets a linear speed at which this feedforward torque is no longer
+        # needed due to forward motion overcomming wheel friction.
+        scalar = 1.0 - geometry.linear_ramp(
+            abs(self._linear_speed), _FEEDFORWARD_LINEAR_SPEED_CUT_OFF
+        )
+        sign = geometry.sign(self._angular_speed)
+        return sign * constants.TURNING_STATIC_FRICTION_TORQUE * scalar
 
     def _wheel_tangential_speed(self, angular_speed: float) -> float:
         """The tangential speed a single wheel velocity must rotate to achieve the

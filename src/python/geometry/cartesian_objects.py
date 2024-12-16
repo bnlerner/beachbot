@@ -313,6 +313,15 @@ class Direction(BaseVectorType):
         )
         return cls.from_array(frame, array)
 
+    def azimuth(self) -> float:
+        """The azimuth of this vector in the celestial coordinate frame (degrees)."""
+        return math.degrees(math.atan2(self.y, self.x))
+
+    def elevation(self) -> float:
+        """The elevation of this vector in the celestial coordinate frame (degrees)."""
+        base_len = (self.x**2 + self.y**2) ** 0.5
+        return math.degrees(math.atan2(self.z, base_len))
+
 
 class AngularVelocity(BaseVectorType):
     """An angular velocity in cartesian space represented in degrees/second. For

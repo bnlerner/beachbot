@@ -1,3 +1,4 @@
+import math
 from typing import Optional
 
 import geometry
@@ -24,8 +25,6 @@ class GPSTransformer:
         self._transformer = pyproj.Transformer.from_crs(
             "EPSG:4326", utm_zone.epsg_code, always_xy=True
         )
-        # Geod object with WGS84 ellipsoid parameters
-        self._wgs84_geod = pyproj.Geod(ellps="WGS84")
         # Load a geoid model (e.g., EGM2008) at 5-minute resolution grid to convert
         # between height above sea level and the ellipsoidal height.
         self._egm_2008_geoid = pygeodesy.GeoidKarney(_GEOID_FILEPATH)
@@ -79,14 +78,18 @@ class GPSTransformer:
         return geometry.wrap_degrees(yaw)
 
     def _grid_convergence(self, longitude: float, latitude: float) -> float:
-        """Calculates convergence angle by comparing the current longitude to the UTM zone
-        central longitude. Returned in degrees.
+        """Calculates convergence angle by comparing two positions. The first being the
+        actual position being evaluated and the other 1m north of that position.
+        Evalutes the angle formed between the two points vs a true north heading
+        (implied by moving 1m north) to understand the convergence angle between the
+        two. Returned in degrees. Considers an ellipsoid height of zero since it doesnt
+        affect the results.
         """
-        _, _, convergence_angle = self._wgs84_geod.inv(
-            longitude, latitude, self._utm_zone.zone_central_longitude, latitude
-        )
-
-        return convergence_angle
+        x0, y0, _ = self._transformer.transform(longitude, latitude, 0.0)
+        x1, y1, _ = self._transformer.transform(longitude, latitude + 0.00001, 0.0)
+        easting_delta = x1 - x0
+        northing_delta = y1 - y0
+        return math.degrees(math.atan2(easting_delta, northing_delta))
 
     def _raise_if_not_in_utm_zone(self, longitude: float, latitude: float) -> None:
         cur_utm_zone = primitives.UTMZone.from_coordinates(longitude, latitude)

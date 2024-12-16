@@ -3,7 +3,6 @@ import dataclasses
 import math
 import os
 import sys
-from typing import Tuple
 
 import adafruit_bno08x  # type:ignore[import-untyped]
 import board  # type:ignore[import-untyped]
@@ -16,7 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import geometry
 from drivers.imu import enums
 from ipc import messages as ipc_messages
-from ipc import registry
+from ipc import registry, session
 
 from node import base_node
 
@@ -26,25 +25,14 @@ _CALIBRATE_STATUS_SLEEP = 1.0
 
 @dataclasses.dataclass
 class _IMUDataCache:
-    # Linear acceleration in m/s^2
-    acceleration_x: float
-    acceleration_y: float
-    acceleration_z: float
-
-    # Magnetic field in each axis in uT
-    magnetic_field_x: float
-    magnetic_field_y: float
-    magnetic_field_z: float
-
     # Gyro rotation measurement on the XYZ axis in rad/s
     angular_speed_x: float
     angular_speed_y: float
     angular_speed_z: float
 
-    # The RPY of the IMU (degrees) in its own frame.
+    # The roll and pitch of the IMU (degrees) in the BODY frame.
     roll: float
     pitch: float
-    yaw: float
 
     # Indicates if the IMU is calibrated.
     is_calibrated: bool
@@ -57,19 +45,14 @@ class _IMUDataCache:
         return f"{self.__class__.__name__}({data})"
 
     def angular_velocity(self) -> geometry.AngularVelocity:
+        """Calculates the BODY frame angular velocity. Since the sensor is rolled 180
+        relative to the BODY frame, the y and z angular speed's signs are flipped.
+        """
         return geometry.AngularVelocity(
-            geometry.VEHICLE,
+            geometry.BODY,
             math.degrees(self.angular_speed_x),
-            math.degrees(self.angular_speed_y),
-            math.degrees(self.angular_speed_z),
-        )
-
-    def acceleration(self) -> geometry.Acceleration:
-        return geometry.Acceleration(
-            geometry.VEHICLE,
-            self.acceleration_x,
-            self.acceleration_y,
-            self.acceleration_z,
+            math.degrees(-self.angular_speed_y),
+            math.degrees(-self.angular_speed_z),
         )
 
 
@@ -80,6 +63,7 @@ class IMUNode(base_node.BaseNode):
         super().__init__(registry.NodeIDs.IMU)
         self._i2c = busio.I2C(board.SCL, board.SDA)
         self._bno = BNO08X_I2C(self._i2c)
+        self._robot_config = session.get_robot_config()
         self._bno.enable_feature(adafruit_bno08x.BNO_REPORT_ACCELEROMETER)
         self._bno.enable_feature(adafruit_bno08x.BNO_REPORT_MAGNETOMETER)
         self._bno.enable_feature(adafruit_bno08x.BNO_REPORT_GYROSCOPE)
@@ -111,35 +95,24 @@ class IMUNode(base_node.BaseNode):
         msg = ipc_messages.IMUMessage(
             roll=self._imu_data_cache.roll,
             pitch=self._imu_data_cache.pitch,
-            heading=self._imu_data_cache.yaw,
             angular_velocity=self._imu_data_cache.angular_velocity(),
-            acceleration=self._imu_data_cache.acceleration(),
             is_calibrated=self._imu_data_cache.is_calibrated,
         )
         self.publish(registry.Channels.IMU, msg)
 
     def _update_data_cache(self) -> None:
-        accel_x, accel_y, accel_z = self._bno.acceleration
-        mag_x, mag_y, mag_z = self._bno.magnetic
         gyro_x, gyro_y, gyro_z = self._bno.gyro
-        roll, pitch, yaw = self._calc_rpy()
+        body_ori = self._calc_body_ori()
         stability = enums.StabilityStatus.from_stability_classification(
             self._bno.stability_classification
         )
 
         self._imu_data_cache = _IMUDataCache(
-            acceleration_x=accel_x,
-            acceleration_y=accel_y,
-            acceleration_z=accel_z,
-            magnetic_field_x=mag_x,
-            magnetic_field_y=mag_y,
-            magnetic_field_z=mag_z,
             angular_speed_x=gyro_x,
             angular_speed_y=gyro_y,
             angular_speed_z=gyro_z,
-            roll=roll,
-            pitch=pitch,
-            yaw=yaw,
+            roll=body_ori.roll,
+            pitch=body_ori.pitch,
             is_calibrated=self._is_calibrated(),
             stability=stability,
         )
@@ -147,13 +120,22 @@ class IMUNode(base_node.BaseNode):
     async def shutdown_hook(self) -> None:
         self._i2c.unlock()
 
-    def _calc_rpy(self) -> Tuple[float, float, float]:
-        """Converts the sensors quaternion measurement into an euler RPY."""
+    def _calc_body_ori(self) -> geometry.Orientation:
+        """Converts the sensors quaternion measurement into an euler RPY orientation in
+        the BODY frame.
+        """
         quat_i, quat_j, quat_k, quat_real = self._bno.quaternion
         roll, pitch, yaw = geometry.quaternion_to_euler(
             quat_real, quat_i, quat_j, quat_k
         )
-        return roll, pitch, yaw
+        roll_offset = self._robot_config.imu_roll_mount_offset
+        pitch_offset = self._robot_config.imu_pitch_mount_offset
+        veh_ori = geometry.Orientation(
+            geometry.UTM, roll + roll_offset, pitch + pitch_offset, yaw
+        )
+        body_ori = veh_ori.rotated(geometry.VEH_TO_BODY_ROT)
+
+        return body_ori
 
 
 if __name__ == "__main__":

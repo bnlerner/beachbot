@@ -34,7 +34,7 @@ class Localizer:
         self._imu_message = msg
 
     def input_motor_vel_msg(self, msg: messages.MotorVelocityMessage) -> None:
-        self._twist_estimator.update(msg.motor.location, msg.estimated_velocity)
+        self._twist_estimator.update(msg.motor, msg.estimated_velocity)
 
     def reset(self) -> None:
         self._imu_message = None
@@ -65,12 +65,10 @@ class Localizer:
     def _calc_orientation(
         self, roll: float, pitch: float, yaw: float
     ) -> geometry.Orientation:
-        # NOTE: z-axis is pointed downward, x-axis forward and y-axis to the right side
-        # to the vehicle. Effectively this RPY is rolled 180 deg from the BODY frame.
-        veh_ori = geometry.Orientation.from_intrinsic_rpy(
+        body_ori = geometry.Orientation.from_intrinsic_rpy(
             geometry.UTM, roll, pitch, 0.0
         )
-        roll, pitch = veh_ori.roll, veh_ori.pitch
+        roll, pitch = body_ori.roll, body_ori.pitch
         return geometry.Orientation(geometry.UTM, roll, pitch, yaw)
 
     def _calc_twist(self, body_ori: geometry.Orientation) -> geometry.Twist:
@@ -78,15 +76,13 @@ class Localizer:
         from the ublox module.
         """
         velocity = self._calc_velocity(req(self._gnss_message).ned_velocity, body_ori)
-        angular_velocity = self._calc_angular_velocity(
-            req(self._imu_message).angular_velocity
-        )
+        angular_velocity = req(self._imu_message).angular_velocity
         sensor_measured_twist = geometry.Twist(velocity, angular_velocity)
         wheel_est_twist = self._twist_estimator.twist()
 
         # TODO: Remove onces twist is validated correct. Possibly also once sensor
         # fusion for position / velocity is complete.
-        if not wheel_est_twist.is_close(sensor_measured_twist):
+        if not wheel_est_twist.is_close(sensor_measured_twist, atol=1.0):
             log.info(f"Twists: \n\t{wheel_est_twist=}\n\t{sensor_measured_twist=}")
 
         return sensor_measured_twist
@@ -101,13 +97,3 @@ class Localizer:
         body_velocity.frame = geometry.BODY
 
         return body_velocity
-
-    def _calc_angular_velocity(
-        self, imu_spin: geometry.AngularVelocity
-    ) -> geometry.AngularVelocity:
-        """Calculates the body angular velocity. Since the sensor is rolled 180 relative
-        to the BODY frame, the y and z angular speed's signs are flipped.
-        """
-        return geometry.AngularVelocity(
-            geometry.BODY, imu_spin.x, -imu_spin.y, -imu_spin.z
-        )

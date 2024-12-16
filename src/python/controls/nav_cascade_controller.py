@@ -1,3 +1,5 @@
+from typing import List
+
 import geometry
 import log
 from config import robot_config
@@ -9,10 +11,10 @@ from controls import nav_velocity_controller
 class NavCascadeController:
     """A cascade controller to handle navigating along the path."""
 
-    def __init__(self, config: robot_config.Beachbot):
+    def __init__(self, motors: List[robot_config.Motor], config: robot_config.Beachbot):
         self._robot_config = config
         self._target_generator = nav_vel_target_generator.NavVelTargetGenerator(config)
-        self._controller = nav_velocity_controller.NavVelocityController(config)
+        self._controller = nav_velocity_controller.NavVelocityController(motors, config)
 
     def update(
         self,
@@ -37,3 +39,7 @@ class NavCascadeController:
     def velocity(self, motor: robot_config.Motor) -> float:
         """Motor velocity in turns/s to achieve the control inputs."""
         return self._controller.velocity(motor)
+
+    def feedforward_torque(self) -> float:
+        """Motor torque in Nm to achieve the control inputs."""
+        return self._controller.feedforward_torque()
