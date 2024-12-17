@@ -98,6 +98,15 @@ def test_to_local() -> None:
     assert p2.position.x == -p1.position.z
 
 
+def test_from_local() -> None:
+    pose = geometry.Pose(
+        geometry.Position(geometry.UTM, 1, 1, 1),
+        geometry.Orientation(geometry.UTM, 0, -45, 90),
+    )
+    pos = pose.from_local(1, 0, 0)
+    assert pos == geometry.Position(geometry.UTM, 1, 1 + 0.5**0.5, 1 + 0.5**0.5)
+
+
 def test_wrong_frame() -> None:
     p_utm = geometry.Position(geometry.UTM, 1, 0, -1)
     p_body = geometry.Position(geometry.BODY, 1, 0, -1)

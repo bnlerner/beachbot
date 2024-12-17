@@ -419,6 +419,13 @@ class Pose:
             self.inverted_rotation, intrinsic=False
         )
 
+    def from_local(self, x: float, y: float, z: float) -> Position:
+        """Outputs a position relative to the local pose's frame."""
+        local_pos = Position(self.position.frame, x, y, z)
+        rot = self.orientation.as_rotation()
+        pos_delta = local_pos.rotated(rot, intrinsic=False)
+        return self.position + pos_delta
+
     def is_close(self, other: Pose, *, atol: float = _DEFAULT_ATOL) -> bool:
         return self.position.is_close(
             other.position, atol=atol
