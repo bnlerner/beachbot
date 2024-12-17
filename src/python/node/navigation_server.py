@@ -88,7 +88,9 @@ class NavigationServer(base_node.BaseNode):
             self._request = None
             return
 
-        self._check_and_replan()
+        if self._nav_progress_tracker.is_ready():
+            self._check_and_replan()
+
         self._update_controller()
 
     def _initialize_planning_and_control(
@@ -101,7 +103,7 @@ class NavigationServer(base_node.BaseNode):
         )
 
     def _publish_motor_cmd_msgs(self) -> None:
-        if not self._is_active_request():
+        if not self._is_active_request() or not self._nav_progress_tracker.is_ready():
             return
 
         # Reset each motor integral if we reach a cusp point.

@@ -1,7 +1,9 @@
 from typing import Optional
 
 import geometry
+import log
 from models import constants
+from typing_helpers import req
 
 from planning import primitives
 
@@ -19,7 +21,7 @@ class NavProgressTracker:
             # TODO: Move slow for now until we gain confidence in the system.
             self.current_navpoint.driving_direction * constants.MAX_LINEAR_SPEED * 0.1
         )
-        self._cached_ref_pose_2d: geometry.Pose
+        self._cached_ref_pose_2d: Optional[geometry.Pose] = None
 
     @property
     def current_navpoint(self) -> primitives.NavigationPoint:
@@ -31,7 +33,11 @@ class NavProgressTracker:
 
     @property
     def ref_pose_2d(self) -> geometry.Pose:
-        return self._cached_ref_pose_2d
+        return req(self._cached_ref_pose_2d)
+
+    def is_ready(self) -> bool:
+        """Tracker has been updated and ready to use."""
+        return self._cached_ref_pose_2d is not None
 
     def update(self, cur_pose: geometry.Pose) -> None:
         self._cached_ref_pose_2d = cur_pose
@@ -68,10 +74,19 @@ class NavProgressTracker:
         return self._nav_path.end == self.current_navpoint
 
     def is_off_nav_path(self) -> bool:
-        dist_to_current_navpoint = self.ref_pose_2d.position.distance(
+        cur_pos = self.ref_pose_2d.position.to_2d()
+        dist_to_current_navpoint = cur_pos.distance(
             self.current_navpoint.pose_2d.position
         )
-        return dist_to_current_navpoint > _NAV_PATH_DISTANCE_TRACKING_TOL
+
+        if dist_to_current_navpoint > _NAV_PATH_DISTANCE_TRACKING_TOL:
+            log.error(
+                f"Too far off nav path, {dist_to_current_navpoint=}, {cur_pos=}, "
+                f"{self.current_navpoint.pose_2d.position=}"
+            )
+            return True
+        else:
+            return False
 
     def _distance_to_next_stopping_point(self, pose: geometry.Pose) -> float:
         distance_to_current_navpoint = pose.position.distance(

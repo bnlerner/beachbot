@@ -26,6 +26,7 @@ _DEFAULT_UTM_ZONE = primitives.UTMZone(
 _STATIC_RESOURCE_PATH = system_info.get_root_project_directory() / "env" / "static"
 _CLIENT_TIMEOUT = 10  # timeout in seconds
 _CONTROL_RATE = 100  # In Hz
+_RC_TIMEOUT = 0.5  # Seconds
 
 
 class UINode(base_node.BaseNode):
@@ -42,6 +43,7 @@ class UINode(base_node.BaseNode):
         self._controller = motor_velocity_controller.MotorVelocityController(
             session.get_robot_motors(), session.get_robot_config()
         )
+        self._rc_watchdog_ts = time.perf_counter()
         self._nav_task: Optional[asyncio.Task] = None
         self._client_sessions: Dict[str, float] = {}
         self._cur_tab: Optional[str] = None
@@ -155,6 +157,8 @@ class UINode(base_node.BaseNode):
         linear_velocity = 0.0 if stop_robot else constants.MAX_LINEAR_SPEED * y * 0.5
         # Negative since positive spin is to the left.
         angular_velocity = 0.0 if stop_robot else constants.MAX_ANGULAR_SPEED * -x
+        # Reset the watchdog timer
+        self._rc_watchdog_ts = time.perf_counter()
         self._controller.set_target(linear_velocity, angular_velocity)
 
     async def _navigate_to_target(self, nav_request: core.Request) -> Optional[str]:
@@ -177,8 +181,13 @@ class UINode(base_node.BaseNode):
 
     def _publish_rc_cmd_msgs(self) -> None:
         # Only publish RC commands if on the RC tab.
-        if self._cur_tab and self._cur_tab != "rc_tab":
+        if self._cur_tab != "rc_tab":
             return None
+
+        # Checks if the RC commands are expired and ensures that the target velocities
+        # are set to zero.
+        if self._is_rc_expired():
+            self._controller.set_target(0.0, 0.0)
 
         for motor in self._motor_configs:
             msg = messages.MotorCommandMessage(
@@ -279,6 +288,11 @@ class UINode(base_node.BaseNode):
                 # Cancel nav request
                 log.info("Cancelling existing nav task to allow RC.")
                 self._nav_task.cancel()
+        elif self._cur_tab == "home":
+            if self._nav_task is not None:
+                # Cancel nav request
+                log.info("Cancelling existing nav task since we are in the wrong tab.")
+                self._nav_task.cancel()
         elif self._cur_tab == "autonomous_tab":
             if self._nav_task is None:
                 self._controller.set_target(0.0, 0.0)
@@ -290,6 +304,12 @@ class UINode(base_node.BaseNode):
                 self._nav_task.cancel()
         else:
             raise ValueError(f"Unexpected tab name {self._cur_tab=}")
+
+    def _is_rc_expired(self) -> bool:
+        """Indicates the RC commands have expired if the watchdog timestamp exceeds the
+        timeout.
+        """
+        return time.perf_counter() - self._rc_watchdog_ts > _RC_TIMEOUT
 
     async def shutdown_hook(self) -> None:
         if self._nav_task is not None:

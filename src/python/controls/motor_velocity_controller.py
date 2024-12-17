@@ -1,12 +1,10 @@
 import collections
-import time
 from typing import DefaultDict, List
 
 import geometry
 from config import robot_config
 from models import body_model
 
-_TIMEOUT = 0.5  # Seconds
 # The max the torque setpoint is allowed change between time steps.
 _MAX_TORQUE_DELTA = 0.015
 # The max the wheel speed setpoint is allowed change between time steps.
@@ -34,23 +32,15 @@ class MotorVelocityController:
             robot_config.Motor, float
         ] = collections.defaultdict(lambda: 0.0)
         self._cached_ff_torque: float = 0.0
-        self._timestamp = time.perf_counter()
 
     def set_target(self, linear_speed: float, angular_speed: float) -> None:
         """Sets the target speeds of the robot."""
         self._model.set_target(linear_speed, angular_speed)
-        # Used to ensure we are not using stale targets.
-        self._timestamp = time.perf_counter()
 
     def calc_wheel_speed(self, motor: robot_config.Motor) -> float:
         """The wheel speed calculated from the set target velocities. Ramps the output
-        wheel speed over time based on how frequently this method is called. Stale
-        targets can expire which causes this controller to set its target velocities to
-        zero and command the motors to stop.
+        wheel speed over time based on how frequently this method is called.
         """
-        if self._is_expired():
-            self._model.set_target(0.0, 0.0)
-
         self._update_wheel_speed(motor)
         return self._cached_wheel_speeds[motor]
 
@@ -59,15 +49,8 @@ class MotorVelocityController:
         turning the robot matches expectation at lower linear speeds. Ramps the
         feedforward torque over time based on how frequently this method is called.
         """
-        if self._is_expired():
-            self._model.set_target(0.0, 0.0)
-
         self._update_wheel_ff_torque()
         return self._cached_ff_torque
-
-    def _is_expired(self) -> bool:
-        """Last set command expires if it exceeds the timeout."""
-        return time.perf_counter() - self._timestamp > _TIMEOUT
 
     def _update_wheel_speed(self, motor: robot_config.Motor) -> None:
         wheel_speed = self._model.wheel_speed(motor)

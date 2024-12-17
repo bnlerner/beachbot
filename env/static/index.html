@@ -14,8 +14,12 @@
         <div id="status-light"></div>
     </div>
     <div class="tab-container">
+        <button class="tab-button" onclick="openTab(event, 'home')">Home</button>
         <button class="tab-button" onclick="openTab(event, 'rc_tab')">RC</button>
         <button class="tab-button" onclick="openTab(event, 'autonomous_tab')">Autonomous</button>
+    </div>
+    <div id="home" class="tab-content">
+        <h3>Welcome to Beachbot!</h3>
     </div>
     <div id="rc_tab" class="tab-content">
         <h3>Navigate by remote control using a joystick below</h3>

@@ -144,6 +144,12 @@ class MotorControlNode(base_node.BaseNode):
         await self._can_bus.send(msg)
 
     def _set_motor_cmd(self, msg: ipc_messages.MotorCommandMessage) -> None:
+        # Take no chances. Conflicting messages cause a lot of problems so just shutdown
+        # if this is ever detected.
+        if self._is_conflicting_msg(msg):
+            log.error(f"Received conflicting message: {msg}, shutting down the server.")
+            self.shutdown()
+
         self._motor_vel_cmd[msg.motor.node_id] = msg
 
     async def _send_motor_cmd(self, msg: ipc_messages.MotorCommandMessage) -> None:
@@ -202,6 +208,15 @@ class MotorControlNode(base_node.BaseNode):
     async def _clear_errors(self, node_id: int) -> None:
         msg = can_messages.ClearErrorsCommand(node_id)
         await self._can_bus.send(msg)
+
+    def _is_conflicting_msg(self, msg: ipc_messages.MotorCommandMessage) -> bool:
+        """A conflicting message such as a command from a different node that is
+        outside of the expiry time of the current motor velocity command message.
+        """
+        if cur_msg := self._motor_vel_cmd[msg.motor.node_id]:
+            return msg.origin != cur_msg.origin and not cur_msg.expired()
+        else:
+            return False
 
 
 if __name__ == "__main__":
