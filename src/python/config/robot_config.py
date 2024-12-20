@@ -116,6 +116,13 @@ class Beachbot(pydantic.BaseModel):
     # Amount of IMU mount offset in beachbot
     imu_roll_mount_offset: float = -0.4
     imu_pitch_mount_offset: float = 2.65
+    # Magnetometer calibration data
+    mag_x_offset: float = -13.875
+    mag_y_offset: float = 12.59375
+    mag_z_offset: float = -19.15625
+    mag_x_scalar: float = 26.25
+    mag_y_scalar: float = 25.71875
+    mag_z_scalar: float = 6.28125
 
     @property
     def track_width(self) -> float:

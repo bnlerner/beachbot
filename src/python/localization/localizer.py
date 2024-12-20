@@ -1,7 +1,6 @@
 from typing import Optional
 
 import geometry
-import log
 from ipc import messages, session
 from models import twist_estimator
 from typing_helpers import req
@@ -56,11 +55,32 @@ class Localizer:
             gnss_msg.latitude,
             ellipsoid_height=gnss_msg.ellipsoid_height,
         )
+        # Don't provide heading of motion if GNSS is not moving as its not a valid measure.
+        heading_of_motion = (
+            gnss_msg.heading_of_motion if gnss_msg.is_in_motion() else None
+        )
+        heading = self._calc_heading(imu_msg.true_compass_heading, heading_of_motion)
         yaw = self._gps_transformer.transform_heading(
-            gnss_msg.longitude, gnss_msg.latitude, gnss_msg.heading
+            gnss_msg.longitude, gnss_msg.latitude, heading
         )
         orientation = self._calc_orientation(imu_msg.roll, imu_msg.pitch, yaw)
         return geometry.Pose(position, orientation)
+
+    def _calc_heading(
+        self, true_compass_heading: float, heading_of_motion: Optional[float]
+    ) -> float:
+        """Determines the heading of the robot using either the heading of motion or the
+        true compass heading depending on whether the robot is in motion or stationary.
+        """
+        if heading_of_motion:
+            wheel_est_twist = self._twist_estimator.twist()
+            if geometry.sign(wheel_est_twist.velocity.x) == -1:
+                # Traveling in reverse
+                return (heading_of_motion + 180) % 360
+            else:
+                return heading_of_motion
+        else:
+            return true_compass_heading
 
     def _calc_orientation(
         self, roll: float, pitch: float, yaw: float
@@ -77,15 +97,8 @@ class Localizer:
         """
         velocity = self._calc_velocity(req(self._gnss_message).ned_velocity, body_ori)
         angular_velocity = req(self._imu_message).angular_velocity
-        sensor_measured_twist = geometry.Twist(velocity, angular_velocity)
-        wheel_est_twist = self._twist_estimator.twist()
 
-        # TODO: Remove onces twist is validated correct. Possibly also once sensor
-        # fusion for position / velocity is complete.
-        if not wheel_est_twist.is_close(sensor_measured_twist, atol=1.0):
-            log.info(f"Twists: \n\t{wheel_est_twist=}\n\t{sensor_measured_twist=}")
-
-        return sensor_measured_twist
+        return geometry.Twist(velocity, angular_velocity)
 
     def _calc_velocity(
         self, utm_velocity: geometry.Velocity, body_ori: geometry.Orientation

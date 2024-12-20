@@ -10,8 +10,11 @@ class GNSSMessage(core.BaseMessage):
     latitude: float
     longitude: float
     ellipsoid_height: float
-    heading: float
+    heading_of_motion: float
     ned_velocity: geometry.Velocity
+
+    def is_in_motion(self) -> bool:
+        return self.ned_velocity.magnitude > 0.3
 
 
 class IMUMessage(core.BaseMessage):
@@ -21,6 +24,7 @@ class IMUMessage(core.BaseMessage):
 
     roll: float
     pitch: float
+    true_compass_heading: float
     angular_velocity: geometry.AngularVelocity
     is_calibrated: bool
 

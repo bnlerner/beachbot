@@ -79,7 +79,7 @@ class GNSSNode(base_node.BaseNode):
                 latitude=self._pvt_msg.latitude,
                 longitude=self._pvt_msg.longitude,
                 ellipsoid_height=self._pvt_msg.ellipsoid_height,
-                heading=self._pvt_msg.heading_of_vehicle,
+                heading_of_motion=self._pvt_msg.heading_of_motion,
                 ned_velocity=ned_velocity,
             )
         else:

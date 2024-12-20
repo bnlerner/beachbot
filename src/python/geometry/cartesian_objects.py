@@ -11,8 +11,6 @@ from geometry import frames, math_helpers
 
 BaseAngleTypeT = TypeVar("BaseAngleTypeT", bound="BaseAngleType")
 BaseVectorTypeT = TypeVar("BaseVectorTypeT", bound="BaseVectorType")
-# Default ATOL, same as numpy.
-_DEFAULT_ATOL = 1e-8
 
 
 @dataclasses.dataclass
@@ -41,7 +39,10 @@ class BaseAngleType:
         )
 
     def is_close(
-        self: BaseAngleTypeT, other: BaseAngleTypeT, *, atol: float = _DEFAULT_ATOL
+        self: BaseAngleTypeT,
+        other: BaseAngleTypeT,
+        *,
+        atol: float = math_helpers.DEFAULT_ATOL,
     ) -> bool:
         """Compares two Angle type objects and if they are relatively close to one
         another. A good way to account for different float quirks.
@@ -150,7 +151,10 @@ class BaseVectorType:
         return math.degrees(rad_angle)
 
     def is_close(
-        self: BaseVectorTypeT, other: BaseVectorTypeT, *, atol: float = _DEFAULT_ATOL
+        self: BaseVectorTypeT,
+        other: BaseVectorTypeT,
+        *,
+        atol: float = math_helpers.DEFAULT_ATOL,
     ) -> bool:
         """Compares two vector type objects and if they are relatively close to one
         another. A good way to account for different float quirks.
@@ -426,7 +430,7 @@ class Pose:
         pos_delta = local_pos.rotated(rot, intrinsic=False)
         return self.position + pos_delta
 
-    def is_close(self, other: Pose, *, atol: float = _DEFAULT_ATOL) -> bool:
+    def is_close(self, other: Pose, *, atol: float = math_helpers.DEFAULT_ATOL) -> bool:
         return self.position.is_close(
             other.position, atol=atol
         ) and self.orientation.is_close(other.orientation, atol=atol)
@@ -460,7 +464,9 @@ class Twist:
     def to_2d(self) -> Twist:
         return Twist(self.velocity.to_2d(), self.spin.to_2d())
 
-    def is_close(self, other: Twist, *, atol: float = _DEFAULT_ATOL) -> bool:
+    def is_close(
+        self, other: Twist, *, atol: float = math_helpers.DEFAULT_ATOL
+    ) -> bool:
         return self.velocity.is_close(other.velocity, atol=atol) and self.spin.is_close(
             other.spin, atol=atol
         )

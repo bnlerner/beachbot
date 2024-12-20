@@ -22,14 +22,18 @@ def _gen_gnss_msg() -> messages.GNSSMessage:
         latitude=26.3353346,
         longitude=-80.128041,
         ellipsoid_height=-19.261,
-        heading=90.3868463628129317,
+        heading_of_motion=90.3868463628129317,
         ned_velocity=_NED_VELOCITY,
     )
 
 
 def _gen_imu_msg() -> messages.IMUMessage:
     return messages.IMUMessage(
-        roll=0, pitch=0, angular_velocity=_ANGULAR_VELOCITY, is_calibrated=True
+        roll=0,
+        pitch=0,
+        true_compass_heading=0,
+        angular_velocity=_ANGULAR_VELOCITY,
+        is_calibrated=True,
     )
 
 

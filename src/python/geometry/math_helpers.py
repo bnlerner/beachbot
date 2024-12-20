@@ -6,6 +6,8 @@ import numpy as np
 
 _F64_MATRIX = nb.types.Array(nb.types.float64, 2, "C")
 _F64_VECTOR = nb.types.Array(nb.types.float64, 1, "C")
+# Default ATOL, same as numpy.
+DEFAULT_ATOL = 1e-8
 
 
 def sign(val: float) -> Literal[-1, 0, 1]:
