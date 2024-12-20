@@ -115,7 +115,7 @@ class MotorControlNode(base_node.BaseNode):
     async def _publish_motor_cmds(self) -> None:
         for motor in self._motor_configs:
             if msg := self._motor_vel_cmd[motor.node_id]:
-                if not msg.expired():
+                if not msg.is_expired():
                     await self._send_motor_cmd(msg)
                 else:
                     # Stop the motor if we havent received a motor command in some time
@@ -214,7 +214,7 @@ class MotorControlNode(base_node.BaseNode):
         outside of the expiry time of the current motor velocity command message.
         """
         if cur_msg := self._motor_vel_cmd[msg.motor.node_id]:
-            return msg.origin != cur_msg.origin and not cur_msg.expired()
+            return msg.origin != cur_msg.origin and not cur_msg.is_expired()
         else:
             return False
 

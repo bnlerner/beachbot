@@ -1,3 +1,5 @@
+from typing import List
+
 import geometry
 from config import robot_config
 
@@ -12,6 +14,8 @@ class GNSSMessage(core.BaseMessage):
     ellipsoid_height: float
     heading_of_motion: float
     ned_velocity: geometry.Velocity
+    position_covariance: List[List[float]]
+    velocity_covariance: List[List[float]]
 
     def is_in_motion(self) -> bool:
         return self.ned_velocity.magnitude > 0.3

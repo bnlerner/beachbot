@@ -3,7 +3,7 @@ import dataclasses
 import math
 import os
 import sys
-from typing import Tuple
+from typing import Optional, Tuple
 
 import adafruit_bno08x  # type: ignore[import-untyped]
 import board  # type: ignore[import-untyped]
@@ -79,8 +79,6 @@ class IMUNode(base_node.BaseNode):
         self._bno.enable_feature(adafruit_bno08x.BNO_REPORT_ROTATION_VECTOR)
         self._bno.enable_feature(adafruit_bno08x.BNO_REPORT_STABILITY_CLASSIFIER)
 
-        self._imu_data_cache: _IMUDataCache
-
         self.add_publishers(registry.Channels.IMU)
         self.add_tasks(self._calibrate)
         self.add_looped_tasks({self._publish_imu_reading: _PUB_FREQUENCY})
@@ -99,33 +97,35 @@ class IMUNode(base_node.BaseNode):
         return enums.CalibrationStatus(self._bno.calibration_status).is_calibrated
 
     def _publish_imu_reading(self) -> None:
-        self._update_data_cache()
-        msg = ipc_messages.IMUMessage(
-            roll=self._imu_data_cache.roll,
-            pitch=self._imu_data_cache.pitch,
-            true_compass_heading=self._imu_data_cache.true_compass_heading,
-            angular_velocity=self._imu_data_cache.angular_velocity(),
-            is_calibrated=self._imu_data_cache.is_calibrated,
-        )
-        self.publish(registry.Channels.IMU, msg)
+        if imu_data_cache := self._calc_data_cache():
+            msg = ipc_messages.IMUMessage(
+                roll=imu_data_cache.roll,
+                pitch=imu_data_cache.pitch,
+                true_compass_heading=imu_data_cache.true_compass_heading,
+                angular_velocity=imu_data_cache.angular_velocity(),
+                is_calibrated=imu_data_cache.is_calibrated,
+            )
+            self.publish(registry.Channels.IMU, msg)
 
-    def _update_data_cache(self) -> None:
+    def _calc_data_cache(self) -> Optional[_IMUDataCache]:
         gyro_x, gyro_y, gyro_z = self._bno.gyro
-        body_ori = self._calc_body_ori()
-        self._imu_data_cache = _IMUDataCache(
-            angular_speed_x=gyro_x,
-            angular_speed_y=gyro_y,
-            angular_speed_z=gyro_z,
-            roll=body_ori.roll,
-            pitch=body_ori.pitch,
-            true_compass_heading=self._calc_true_compass_heading(body_ori),
-            is_calibrated=self._is_calibrated(),
-            stability=enums.StabilityStatus.from_stability_classification(
-                self._bno.stability_classification
-            ),
-        )
+        if body_ori := self._calc_body_ori():
+            return _IMUDataCache(
+                angular_speed_x=gyro_x,
+                angular_speed_y=gyro_y,
+                angular_speed_z=gyro_z,
+                roll=body_ori.roll,
+                pitch=body_ori.pitch,
+                true_compass_heading=self._calc_true_compass_heading(body_ori),
+                is_calibrated=self._is_calibrated(),
+                stability=enums.StabilityStatus.from_stability_classification(
+                    self._bno.stability_classification
+                ),
+            )
+        else:
+            return None
 
-    def _calc_body_ori(self) -> geometry.Orientation:
+    def _calc_body_ori(self) -> Optional[geometry.Orientation]:
         """Converts the sensors quaternion measurement into an euler RPY orientation in
         the BODY frame. IMU rotation vector quaternion is optimized for accuracy and
         referenced to magnetic north and gravity from accelerometer, gyro, and
@@ -135,6 +135,10 @@ class IMUNode(base_node.BaseNode):
         NOTE: Yaw is not accurate and should not be used.
         """
         quat_i, quat_j, quat_k, quat_real = self._bno.quaternion
+        # Return None if Quaternion is not a valid measure yet.
+        if sum([quat_i, quat_j, quat_k, quat_real]) == 0:
+            return None
+
         roll, pitch, yaw = geometry.quaternion_to_euler(
             quat_real, quat_i, quat_j, quat_k
         )

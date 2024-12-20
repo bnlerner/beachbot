@@ -24,6 +24,8 @@ def _gen_gnss_msg() -> messages.GNSSMessage:
         ellipsoid_height=-19.261,
         heading_of_motion=90.3868463628129317,
         ned_velocity=_NED_VELOCITY,
+        position_covariance=[[0] * 3] * 3,
+        velocity_covariance=[[0] * 3] * 3,
     )
 
 

@@ -1,6 +1,8 @@
+import asyncio
 import os
 import sys
 import time
+from typing import Type
 
 import serial  # type: ignore[import-untyped]
 from ublox_gps import UbloxGps  # type: ignore[import-untyped]
@@ -11,50 +13,59 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import system_info
 from drivers.gps import messages
 
-# Can also use SPI here - import spidev, but we dont because USB is easier to setup.
-port = serial.Serial(system_info.UBLOX_SERIAL, baudrate=38400, timeout=1)
-gps = UbloxGps(port)
+_WAIT_TIME = 60
 
 
-def run() -> None:
-    try:
+class GPSMessageReader:
+    def __init__(self) -> None:
+        self._port = serial.Serial(system_info.UBLOX_SERIAL, baudrate=38400, timeout=1)
+        self._ublox_gps = UbloxGps(self._port)
+
+    async def listen(self) -> None:
         print("Listening for UBX Messages.")
+        await asyncio.gather(
+            self._listen_for_cov_message(), self._listen_for_pvt_message()
+        )
+
+    async def _listen_for_pvt_message(self) -> None:
         while True:
             start = time.perf_counter()
-            print(f"Auto messages, {gps.cls_ms_auto=}")
-            # Position, Velocity and Time message.
-            if coords := gps.geo_coords():
-                pvt_msg = messages.UbloxPVTMessage.from_ublox_message(coords)
-                print(f"{pvt_msg=}\n")
-            if cov := gps.wait_packet("NAV", "COV", 2500):
-                print(f"{cov=}")
-            # if veh_att := gps.veh_attitude():
-            #     att_msg = messages.UbloxATTMessage.from_ublox_message(veh_att)
-            #     print(f"{att_msg=}\n")
-            # if veh_dyn := gps.vehicle_dynamics():
-            #     print(f"{veh_dyn=}")
-            #     ins_msg = messages.UbloxINSMessage.from_ublox_message(veh_dyn)
-            #     print(f"{ins_msg=}\n")
-            # Status of the sensors being used for sensor fusion.
-            # if status := gps.esf_status():
-            #     status_msg = messages.UbloxESFStatusMessage.from_ublox_message(
-            #         status
-            #     )
-            #     print(f"{status_msg=}\n")
-
-            # if esf_measures := gps.esf_measures():
-            #     print(f"{esf_measures=}")
-            # Status of the RF antenna.
-            # if rf_status := gps.rf_ant_status():
-            #     print(f"{rf_status=}\n")
+            msg = await self._poll_for_message(messages.UbloxPVTMessage)
             print(f"Run time: {time.perf_counter() - start} s")
-            # time.sleep(1)
-            # data = gps.wait_packet('ESF', 'INS', 2500)
-            # print(data)
+            print(msg)
 
-    finally:
-        port.close()
+    async def _listen_for_cov_message(self) -> None:
+        while True:
+            start = time.perf_counter()
+            msg = await self._poll_for_message(messages.UbloxCOVMessage)
+            print(f"Run time: {time.perf_counter() - start} s")
+            print(msg)
+
+    async def _poll_for_message(
+        self, msg: Type[messages.UbloxBaseMessage]
+    ) -> messages.UbloxBaseMessage:
+        self._ublox_gps.set_packet(msg.cls_name, msg.msg_name, None)
+        self._ublox_gps.send_message(msg.cls_name, msg.msg_name, None)
+
+        start = time.perf_counter()
+        while msg.msg_name not in self._ublox_gps.packets[msg.cls_name]:
+            await asyncio.sleep(0.05)
+
+            if time.perf_counter() - start > _WAIT_TIME:
+                break
+
+        ublox_msg = self._ublox_gps.packets[msg.cls_name].get(msg.msg_name, None)
+        return msg.from_ublox_message(ublox_msg)
+
+    def close(self) -> None:
+        self._port.close()
 
 
 if __name__ == "__main__":
-    run()
+    reader = GPSMessageReader()
+    try:
+        asyncio.run(reader.listen())
+    except KeyboardInterrupt:
+        pass
+    finally:
+        reader.close()

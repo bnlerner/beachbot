@@ -30,7 +30,7 @@ class BaseMessage(pydantic.BaseModel):
     # Message default lifetime
     lifetime: float = 0.5
 
-    def expired(self) -> bool:
+    def is_expired(self) -> bool:
         # Cannot expire if never created?
         return req(self.creation) + self.lifetime < time.perf_counter()
 

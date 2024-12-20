@@ -8,8 +8,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ipc import messages, pubsub, registry
 
-_MSG_TYPE = messages.IMUMessage
-_CHANNEL = registry.Channels.IMU
+_MSG_TYPE = messages.GNSSMessage
+_CHANNEL = registry.Channels.GNSS
 _MSGS_RECEIVED = 0
 
 

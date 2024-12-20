@@ -1,7 +1,8 @@
 import asyncio
 import os
 import sys
-from typing import Optional
+import time
+from typing import Optional, Type
 
 import serial  # type: ignore[import-untyped]
 from ublox_gps import UbloxGps  # type: ignore[import-untyped]
@@ -22,6 +23,7 @@ _TIMEOUT = 1.0
 _BAUDRATE = 38400
 # NOTE: Updates at a maximum of 20hz. Configurable on the ublox's u-center software.
 _PUB_FREQUENCY = 20
+_WAIT_TIME = 60
 
 
 class GNSSNode(base_node.BaseNode):
@@ -36,31 +38,53 @@ class GNSSNode(base_node.BaseNode):
             system_info.UBLOX_SERIAL, baudrate=_BAUDRATE, timeout=_TIMEOUT
         )
         self._ublox_gps = UbloxGps(self._serial_conn)
+        self._cov_msg: Optional[gps_messages.UbloxCOVMessage] = None
         self._pvt_msg: Optional[gps_messages.UbloxPVTMessage] = None
 
-        self.add_tasks(self._poll_ublox_module)
+        self.add_tasks(self._update_cov_data, self._update_pvt_data)
         self.add_looped_tasks({self._publish_gnss: _PUB_FREQUENCY})
         self.add_publishers(registry.Channels.GNSS)
 
-    async def _poll_ublox_module(self) -> None:
+    async def _update_cov_data(self) -> None:
         """Continuously polls the Ublox module for data. Note that its update rate is
         limited in the module and can be configured in the Ublox u-center software.
         """
         while True:
-            try:
-                self._update_pvt_data()
-            except IOError as err:
-                # Can happen occasionally. Opt to just log and continue if this happens.
-                log.error(f"{err=}")
-            finally:
-                await asyncio.sleep(0)
+            if cov_msg := await self._poll_for_message(gps_messages.UbloxCOVMessage):
+                self._cov_msg = cov_msg
+                log.data(**self._cov_msg.__dict__)
+            else:
+                self._cov_msg = None
 
-    def _update_pvt_data(self) -> None:
-        if pvt_msg := self._ublox_gps.geo_coords():
-            self._pvt_msg = gps_messages.UbloxPVTMessage.from_ublox_message(pvt_msg)
-            log.data(**self._pvt_msg.__dict__)
+    async def _update_pvt_data(self) -> None:
+        while True:
+            if pvt_msg := await self._poll_for_message(gps_messages.UbloxPVTMessage):
+                self._pvt_msg = pvt_msg
+                log.data(**self._pvt_msg.__dict__)
+            else:
+                self._pvt_msg = None
+
+    async def _poll_for_message(
+        self, msg: Type[gps_messages.UbloxBaseMessageT]
+    ) -> Optional[gps_messages.UbloxBaseMessageT]:
+        """Reimplementation of the ublox gps package 'request_standard_packet' in an
+        async way to allow for efficient message polling between messages with different
+        update frequencies.
+        """
+        self._ublox_gps.set_packet(msg.cls_name, msg.msg_name, None)
+        self._ublox_gps.send_message(msg.cls_name, msg.msg_name, None)
+
+        start = time.perf_counter()
+        while msg.msg_name not in self._ublox_gps.packets[msg.cls_name]:
+            await asyncio.sleep(0.01)
+
+            if time.perf_counter() - start > _WAIT_TIME:
+                break
+
+        if ublox_msg := self._ublox_gps.packets[msg.cls_name].get(msg.msg_name, None):
+            return msg.from_ublox_message(self._ublox_gps.scale_packet(ublox_msg))
         else:
-            self._pvt_msg = None
+            return None
 
     def _publish_gnss(self) -> None:
         if gnss_msg := self._gen_gnss_msg():
@@ -68,7 +92,12 @@ class GNSSNode(base_node.BaseNode):
             self._pvt_msg = None
 
     def _gen_gnss_msg(self) -> Optional[ipc_messages.GNSSMessage]:
-        if self._pvt_msg and self._pvt_msg.is_valid():
+        if (
+            self._pvt_msg
+            and self._cov_msg
+            and self._pvt_msg.is_valid()
+            and self._cov_msg.is_valid()
+        ):
             ned_velocity = geometry.Velocity(
                 geometry.UTM,
                 self._pvt_msg.east_velocity,
@@ -81,6 +110,8 @@ class GNSSNode(base_node.BaseNode):
                 ellipsoid_height=self._pvt_msg.ellipsoid_height,
                 heading_of_motion=self._pvt_msg.heading_of_motion,
                 ned_velocity=ned_velocity,
+                position_covariance=self._cov_msg.position_covariance,
+                velocity_covariance=self._cov_msg.velocity_covariance,
             )
         else:
             return None

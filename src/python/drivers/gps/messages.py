@@ -1,16 +1,55 @@
 from __future__ import annotations
 
+import abc
+import time
+from typing import Any, ClassVar, Dict, List, Tuple, Type, TypeVar
+
 import geometry
 import pydantic
 from ublox_gps import core as ublox_core  # type: ignore[import-untyped]
 
 from drivers.gps import enums
 
+UbloxBaseMessageT = TypeVar("UbloxBaseMessageT", bound="UbloxBaseMessage")
 
-class UbloxPVTMessage(pydantic.BaseModel):
+
+class UbloxBaseMessage(pydantic.BaseModel, abc.ABC):
+    """A base message for Ublox which implements some helpful features all messages use."""
+
+    cls_name: ClassVar[str]
+    msg_name: ClassVar[str]
+    creation: float = pydantic.Field(default_factory=time.perf_counter)
+    lifetime: float = 0.5
+
+    class Config:
+        validate_assignment = True
+
+    @classmethod
+    @abc.abstractmethod
+    def from_ublox_message(
+        cls: Type[UbloxBaseMessageT], msg: ublox_core.Message
+    ) -> UbloxBaseMessageT:
+        ...
+
+    @pydantic.model_validator(mode="before")
+    @classmethod
+    def ensure_timestamp(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        if "creation" not in values or values["creation"] is None:
+            values["creation"] = time.perf_counter()
+
+        return values
+
+    def is_expired(self) -> bool:
+        return self.creation + self.lifetime < time.perf_counter()
+
+
+class UbloxPVTMessage(UbloxBaseMessage):
     """Ublox PVT (position, velocity, time) message as described in page 390 of
     https://content.u-blox.com/sites/default/files/products/documents/u-blox8-M8_ReceiverDescrProtSpec_UBX-13003221.pdf
     """
+
+    cls_name: ClassVar[str] = "NAV"
+    msg_name: ClassVar[str] = "PVT"
 
     # Type of fix from the Ublox.
     fix_type: enums.FixType
@@ -71,8 +110,11 @@ class UbloxPVTMessage(pydantic.BaseModel):
         return self.num_satellites > 0 and self.fix_type.value != 0
 
 
-class UbloxATTMessage(pydantic.BaseModel):
+class UbloxATTMessage(UbloxBaseMessage):
     """This message outputs the attitude solution as RPH angles."""
+
+    cls_name: ClassVar[str] = "NAV"
+    msg_name: ClassVar[str] = "ATT"
 
     # Vehicle RPH in degrees
     roll: float
@@ -84,10 +126,13 @@ class UbloxATTMessage(pydantic.BaseModel):
         return UbloxATTMessage(roll=msg.roll, pitch=msg.pitch, heading=msg.heading)
 
 
-class UbloxINSMessage(pydantic.BaseModel):
+class UbloxINSMessage(UbloxBaseMessage):
     """Ublox INS (inertial navigation solution) message which is primarily concerned
     with vehicle dynamics. All ADR product (this one) are relative to the VEHICLE frame.
     """
+
+    cls_name: ClassVar[str] = "ESF"
+    msg_name: ClassVar[str] = "INS"
 
     # Angular rate of procession around the XYZ axis of the vehicle. (deg/s)
     x_axis_angular_rate: float
@@ -109,7 +154,7 @@ class UbloxINSMessage(pydantic.BaseModel):
             x_axis_acceleration=msg.xAccel,
             y_axis_acceleration=msg.yAccel,
             z_axis_acceleration=msg.zAccel,
-            is_valid=not all(
+            is_valid=all(
                 [
                     val_fields.xAngRateValid,
                     val_fields.yAngRateValid,
@@ -138,8 +183,11 @@ class UbloxINSMessage(pydantic.BaseModel):
         )
 
 
-class UbloxESFStatusMessage(pydantic.BaseModel):
+class UbloxESFStatusMessage(UbloxBaseMessage):
     """Ublox Status of the external sensor fusion"""
+
+    cls_name: ClassVar[str] = "ESF"
+    msg_name: ClassVar[str] = "STATUS"
 
     fusion_mode: enums.SensorFusionMode
     wheel_tick: enums.SensorStatus
@@ -156,3 +204,71 @@ class UbloxESFStatusMessage(pydantic.BaseModel):
             ins=enums.SensorStatus(msg.initStatus1.insInitStatus),
             imu=enums.SensorStatus(msg.initStatus2.imuInitStatus),
         )
+
+
+class UbloxCOVMessage(UbloxBaseMessage):
+    """Ublox COV (covariance matrices) message which contains information on correlation
+    between axes of the position and velocity solutions in the topocentric coordinate
+    system defined as the local-level North (N), East (E), Down (D) frame.
+    """
+
+    cls_name: ClassVar[str] = "NAV"
+    msg_name: ClassVar[str] = "COV"
+    # Longer lifetime because this message takes a while to get from the ublox module.
+    lifetime: float = 60.0
+
+    position_covariance: List[List[float]]
+    velocity_covariance: List[List[float]]
+    # Whether the covariance matrice is considered valid by the ublox module.
+    is_data_valid: bool
+
+    @classmethod
+    def from_ublox_message(cls, msg: ublox_core.Message) -> UbloxCOVMessage:
+        """Generates the covariance message from the ublox message. As the covariance
+        matrices are symmetric, only the upper triangular part is output.
+
+        Position Standard Deviations:
+            posCovNN: Standard deviation along the North axis in m^2.
+            posCovEE: Standard deviation along the East axis in m^2.
+            posCovDD: Standard deviation along the Down axis in m^2.
+        Position Correlation Coefficients:
+            posCovNE: Correlation between North and East in m^2.
+            posCovND: Correlation between North and Down in m^2.
+            posCovED: Correlation between East and Down in m^2.
+        Velocity Standard Deviations:
+            velCovNN, velCovEE, velCovDD in m^2/s^2.
+        Velocity Correlation Coefficients:
+            velCovNE, velCovND, velCovED in m^2/s^2.
+        """
+        return UbloxCOVMessage(
+            position_covariance=_gen_covariance_matrix(
+                (msg.posCovNN, msg.posCovEE, msg.posCovDD),
+                (msg.posCovNE, msg.posCovND, msg.posCovED),
+            ),
+            velocity_covariance=_gen_covariance_matrix(
+                (msg.velCovNN, msg.velCovEE, msg.velCovDD),
+                (msg.velCovNE, msg.velCovND, msg.velCovED),
+            ),
+            is_data_valid=all([msg.posCovValid, msg.velCovValid]),
+        )
+
+    def is_valid(self) -> bool:
+        return self.is_data_valid and not self.is_expired()
+
+
+def _gen_covariance_matrix(
+    std_dev: Tuple[float, float, float], correlations: Tuple[float, float, float]
+) -> List[List[float]]:
+    """Create a 3x3 covariance matrix from the standard deviation of (sigma_x,
+    sigma_y, sigma_z) and correlation coefficients (rho_xy, rho_xz, rho_yz).
+    """
+    sigma_x, sigma_y, sigma_z = std_dev
+    rho_xy, rho_xz, rho_yz = correlations
+
+    cov_matrix = [
+        [sigma_x**2, rho_xy * sigma_x * sigma_y, rho_xz * sigma_x * sigma_z],
+        [rho_xy * sigma_x * sigma_y, sigma_y**2, rho_yz * sigma_y * sigma_z],
+        [rho_xz * sigma_x * sigma_z, rho_yz * sigma_y * sigma_z, sigma_z**2],
+    ]
+
+    return cov_matrix
