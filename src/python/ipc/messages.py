@@ -7,7 +7,7 @@ from ipc import core
 
 
 class GNSSMessage(core.BaseMessage):
-    """Message containing the current location of the robot."""
+    """Message containing the current location of the robot, its velocity and covariance."""
 
     latitude: float
     longitude: float
