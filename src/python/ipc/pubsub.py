@@ -35,8 +35,10 @@ class Publisher(Generic[BaseMessageT]):
         read by the subscriber.
         """
         if (cur_shm_id := _get_shm_id(self._shm)) is None:
-            log.info("Attempting to publish to a closed SHM file. Skipping")
-            return None
+            log.error(
+                f"{self._node_id} is attempting to publish to SHM {self._shm.name} which is closed."
+            )
+            return
 
         _raise_if_shm_id_changed(self._shm_id, cur_shm_id)
         msg.origin = self._node_id
@@ -66,7 +68,7 @@ class Subscriber(Generic[BaseMessageT]):
         self,
         node_id: core.NodeID,
         channel: core.ChannelSpec[BaseMessageT],
-        callback: Callable,
+        callback: Optional[Callable],
     ):
         self._node_id = node_id
         self._shm = _init_shm(channel)
@@ -74,12 +76,14 @@ class Subscriber(Generic[BaseMessageT]):
         # Should always be non-None because we just init the SHM file.
         self._shm_id = req(_get_shm_id(self._shm))
 
-        self._last_msg: Optional[BaseMessageT] = None
+        # Prime last message so we only return new messages
+        self._last_msg: Optional[BaseMessageT] = self._get_msg()
         self._running = True
 
-    async def listen(self) -> None:
-        """Listens indefinitely for the latest unique message and processes it via a
-        callback.
+    async def wait_for_message(self) -> Optional[BaseMessageT]:
+        """Waits for a message to be returned. Returns None in cases where the
+        subscriber stops running or no further messages are expected due to the channel
+        closing.
         """
         while self._running:
             if (cur_shm_id := _get_shm_id(self._shm)) is None:
@@ -88,7 +92,7 @@ class Subscriber(Generic[BaseMessageT]):
                 # the listen function vs raise.
                 self._running = False
                 log.info("Shutting down listen as the SHM file is unlinked.")
-                return
+                return None
 
             _raise_if_shm_id_changed(self._shm_id, cur_shm_id)
             if (msg := self._get_msg()) is None or msg == self._last_msg:
@@ -96,13 +100,25 @@ class Subscriber(Generic[BaseMessageT]):
                 await asyncio.sleep(_POLL_INTERVAL)
             else:
                 self._last_msg = msg
-                if _is_coroutine(self._callback):
-                    await self._callback(msg)
-                else:
-                    self._callback(msg)
-                    # Gives up the thread temporarily for regular callbacks to let other
-                    # concurrent processes run.
-                    await asyncio.sleep(0.0)
+                return msg
+
+        return None
+
+    async def listen(self) -> None:
+        """Listens indefinitely for the latest unique message and processes it via the
+        configured callback.
+        """
+        if self._callback is None:
+            raise ValueError("Callback must be specified to listen for messages.")
+
+        while msg := await self.wait_for_message():
+            if _is_coroutine(self._callback):
+                await self._callback(msg)
+            else:
+                self._callback(msg)
+                # Gives up the thread temporarily for regular callbacks to let other
+                # concurrent processes run.
+                await asyncio.sleep(0.0)
 
     def close(self) -> None:
         """Stops the subscriber for running, permanently closing any open links to

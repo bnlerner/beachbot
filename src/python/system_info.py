@@ -1,5 +1,7 @@
 import pathlib
 
+UBLOX_SERIAL = "/dev/ttyACM0"
+
 
 def get_root_project_directory() -> pathlib.Path:
     """Gets the root directory (beachbot) of this project's repository."""

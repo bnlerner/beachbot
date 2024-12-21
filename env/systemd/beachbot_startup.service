@@ -10,7 +10,7 @@ StartLimitIntervalSec=0
 Environment=PROJECT_DIR=/home/brianlerner/beachbot
 Environment=HOME_DIR=/home/brianlerner/
 WorkingDirectory=/home/brianlerner/beachbot
-ExecStart=/usr/bin/python3 main.py ui
+ExecStart=/opt/anaconda3/bin/python3 main.py ui
 StandardOutput=journal
 KillSignal=SIGINT
 Restart=on-failure

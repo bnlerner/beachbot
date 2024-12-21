@@ -191,26 +191,28 @@ class HeartbeatMessage(OdriveCanMessage):
     cmd_id = 0x01
 
     # uint32, starts at 0th byte, axis.active_errors | axis.disarm_reason
-    axis_error: int
+    axis_error: odrive_enums.ODriveError
     # uint8, starts at 4th byte, axis.current_state
-    axis_state: int
+    axis_state: odrive_enums.AxisState
     # uint8, starts at 5th byte, axis.procedure_result
-    procedure_result: int
+    procedure_result: odrive_enums.ProcedureResult
     # uint8, starts at 6th byte, axis.controller.trajectory_done (0: False, 1: True)
-    trajectory_done_flag: int
+    trajectory_done_flag: bool
 
     def _parse_can_msg_data(self, msg: can.Message) -> None:
-        msg_data_values = struct.unpack("<IBBB", bytes(msg.data[:7]))
-        (
-            self.axis_error,
-            self.axis_state,
-            self.procedure_result,
-            self.trajectory_done_flag,
-        ) = msg_data_values
+        data_values = struct.unpack("<IBBB", bytes(msg.data[:7]))
+        axis_error_int, axis_state_int, procedure_res_int, traj_done_int = data_values
+        self.axis_error = odrive_enums.ODriveError(axis_error_int)
+        self.axis_state = odrive_enums.AxisState(axis_state_int)
+        self.procedure_result = odrive_enums.ProcedureResult(procedure_res_int)
+        self.trajectory_done_flag = bool(traj_done_int)
 
     def __repr__(self) -> str:
         identification_str = f"{self.arbitration_id=}, {self.node_id=}"
-        values_str = f"{self.axis_error=}, {self.procedure_result=}, {self.axis_state=}, {self.trajectory_done_flag=}"
+        values_str = (
+            f"{self.axis_error.name=}, {self.procedure_result=}, "
+            f"{self.axis_state.name=}, {self.trajectory_done_flag=}"
+        )
         return f"{self.__class__.__name__} {identification_str}\n ({values_str})"
 
 
@@ -300,6 +302,18 @@ class VersionMessage(OdriveCanMessage):
 ########################################################################################
 # COMMAND MESSAGES #####################################################################
 ########################################################################################
+
+
+class ClearErrorsCommand(OdriveCanMessage):
+    """Clears any active errors on the Odrive."""
+
+    cmd_id = 0x18
+
+    # uint8, flashes LED? Default to 0 since not 100% necessary.
+    identify: int = 0
+
+    def _gen_can_msg_data(self) -> bytes:
+        return struct.pack("<B", self.identify)
 
 
 class ReadParameterCommand(OdriveCanMessage):
@@ -420,7 +434,7 @@ class SetControllerMode(OdriveCanMessage):
     #     velocity, acceleration and deceleration. Only works with position control.
     #   - Torque Ramp (6): Ramps a torque command from the current value to the target value. Configured via the
     #     torque ramp rate.
-    input_mode: odrive_enums.InputMode = odrive_enums.InputMode.PASSTHROUGH
+    input_mode: odrive_enums.InputMode
 
     def _gen_can_msg_data(self) -> bytes:
         return struct.pack("<II", self.control_mode.value, self.input_mode.value)

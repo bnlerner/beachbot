@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Beachbot Control Hub</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <h2>Beachbot Control Hub</h2>
+    <div id="status-container">
+        <span id="status-text">Connection:</span>
+        <!-- Light indicator -->
+        <div id="status-light"></div>
+    </div>
+    <div class="tab-container">
+        <button class="tab-button" onclick="openTab(event, 'home')">Home</button>
+        <button class="tab-button" onclick="openTab(event, 'rc_tab')">RC</button>
+        <button class="tab-button" onclick="openTab(event, 'autonomous_tab')">Autonomous</button>
+    </div>
+    <div id="home" class="tab-content">
+        <h3>Welcome to Beachbot!</h3>
+    </div>
+    <div id="rc_tab" class="tab-content">
+        <h3>Navigate by remote control using a joystick below</h3>
+        <div id="zone_joystick" style="float:left;width:100%;margin:0;padding:0;"></div>
+        <!-- Display coordinates here -->
+        <div id="coordinates">Turn (positive is right): 0, Drive (positive is forward): 0</div>
+
+        <!-- Include NippleJS -->
+        <script src="/nipplejs.js"></script>
+        <script>
+            // Initialize the joystick using NippleJS
+            const joystickContainer = document.getElementById('zone_joystick');
+            const coordinatesDisplay = document.getElementById('coordinates');
+            const PUBLISH_INTERVAL = 100; // 100 ms = 10 Hz
+            let js_x = 0;
+            let js_y = 0;
+            let should_stop = false;
+
+            // Prevents resizing via double click
+            document.addEventListener("dblclick", (event) => {
+                event.preventDefault();
+            });
+
+            const joystick = nipplejs.create({
+                zone: joystickContainer,
+                size: 200,
+                color: 'blue',
+            });
+            joystick.on('move', (event, data) => {
+                if (data && data.vector) {
+                    js_x = data.vector.x.toFixed(2);
+                    js_y = data.vector.y.toFixed(2);
+                    should_stop = false;
+
+                    // Update the coordinates display
+                    coordinatesDisplay.textContent = `Turn (positive is right): ${js_x}, Drive (positive is forward): ${js_y}`;
+                }
+            });
+            // Send zeros on joystick release
+            joystick.on('end', () => {
+                js_x = 0.0;
+                js_y = 0.0;
+                should_stop = true;
+
+                // Update the coordinates display
+                coordinatesDisplay.textContent = `Turn (positive is right): 0.00, Drive (positive is forward): 0.00`;
+
+            });
+
+            // Send the current joystick command to the backend
+            const sendJoystickCommand = () => {
+                if (!isTabActive('rc_tab')) return; // Only send events if joystick tab is active
+                // Send the joystick data to the server
+                fetch('/joystick_input', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        token: token,
+                        x: js_x,
+                        y: js_y,
+                        stop: should_stop
+                    })
+                }).then(response => response.json())
+                .then(data => console.log(data))
+            };
+
+            // Periodically send joystick command messages
+            setInterval(sendJoystickCommand, PUBLISH_INTERVAL);
+
+            const isTabActive = (tabName) => {
+                return document.getElementById(tabName).classList.contains('active');
+            };
+        </script>
+    </div>
+    <div id="autonomous_tab" class="tab-content">
+        <h3>Navigate autonomously to your location</h3>
+        <button class="action-button" onclick="sendNavigateRequest()">Navigate to me</button>
+        <button class="action-button" onclick="cancelNavigateRequest()">Cancel</button>
+        <div id="gps_coordinates">Status: Waiting Commands</div>
+        <!-- E-Stop Button -->
+        <button class="e-stop-button" onclick="sendEStop()">EMERGENCY STOP</button>
+
+        <script>
+            const GPSCoordinatesDisplay = document.getElementById('gps_coordinates');
+            function sendNavigateRequest() {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            const latitude = position.coords.latitude;
+                            const longitude = position.coords.longitude;
+                            const altitude = position.coords.altitude;
+
+                            // Update the coordinates display
+                            GPSCoordinatesDisplay.textContent = `Status: Navigating to Latitude: ${latitude.toFixed(4)}, Longitude: ${longitude.toFixed(4)}`;
+
+                            // Send a navigate request with GPS data to the server
+                            fetch('/navigate', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    token: token,
+                                    latitude: latitude,
+                                    longitude: longitude,
+                                    altitude: altitude,
+                                }),
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                console.log('Server response:', data);
+                                const message = data.message || '';
+                                GPSCoordinatesDisplay.textContent = `Status: ${data.status}, message: ${message}`;
+                            })
+                            .catch(error => {
+                                console.error('Error sending navigate request.');
+                            });
+                        },
+                        function(error) {
+                            console.error('Error getting GPS data:', error);
+                        }
+                    );
+                } else {
+                    alert("Geolocation is not supported by this browser.");
+                }
+            }
+            function cancelNavigateRequest() {
+                fetch('/navigate', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Server response:', data);
+                })
+                .catch(error => {
+                    console.error('Error sending cancel request:', error);
+                });
+                // Update the coordinates display
+                GPSCoordinatesDisplay.textContent = `Status: Cancelling`;
+            }
+            function sendEStop() {
+                fetch('/e-stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    GPSCoordinatesDisplay.textContent = `Status: ${data.status}`;
+                    alert('Emergency Stop activated');
+                    console.log('E-Stop response:', data);
+                })
+                .catch(error => {
+                    console.error('Error activating E-Stop:', error);
+                });
+            }
+        </script>
+    </div>
+    <script>
+        const KEEP_ALIVE_INTERVAL = 1000; // 1 seconds
+        const DISCONNECT_TIMEOUT = 2000; // 2 seconds
+
+        const statusLight = document.getElementById("status-light");
+        const statusText = document.getElementById("status-text");
+        let isConnected = false;
+        const token = generateToken();
+
+        function generateToken(length = 32) {
+            const array = new Uint8Array(length);
+            window.crypto.getRandomValues(array);
+            return btoa(String.fromCharCode.apply(null, array)).slice(0, length);
+        }
+
+        fetch('/start-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token }),
+        })
+        .then((response) => {
+            if (response.ok) {
+                console.log('Session started successfully');
+            } else {
+                console.error('Failed to start session');
+            }
+        })
+        .catch((error) => console.error('Error starting session: ', error));
+
+        // Function to open a tab and close others
+        function openTab(event, tabName) {
+            // Hide all tab content
+            const tabcontent = document.querySelectorAll('.tab-content');
+            tabcontent.forEach((content) => content.classList.remove('active'));
+
+            // Remove the "active" class from all tab buttons
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(tab => tab.classList.remove('active'));
+
+            // Show the current tab and add "active" class to the button
+            document.getElementById(tabName).classList.add('active');
+            event.currentTarget.classList.add('active');
+
+            // Send a request to the server when switching tabs
+            fetch('/tab_switch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: token, tab: tabName }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Server response: ', data);
+            })
+            .catch(error => {
+                console.error('Error sending tab switch request:', error);
+            });
+        }
+
+        // Open Tab 1 by default
+        document.addEventListener("DOMContentLoaded", function() {
+            document.querySelector('.tab-button').click();
+        });
+
+        // Keep-alive mechanism
+        const sendKeepAlive = () => {
+            fetch('/keep-alive', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: token, status: 'alive' }),
+            })
+                .then(response => response.json())
+                .then(data => {
+                    isConnected = true;
+                    if (data.status == 'alive') {
+                        /* Green indicates that the session is connected and able to
+                        move the robot. */
+                        statusLight.style.backgroundColor = 'green';
+                    } else {
+                        /* Yellow indicates an authentication issue and the robot is up
+                        but not available to connect. This can be due to multiple
+                        sessions open trying to simultaneously connect to the robot. */
+                        statusLight.style.backgroundColor = 'yellow';
+                    }
+                })
+                .catch(() => {
+                    isConnected = false;
+                    statusLight.style.backgroundColor = 'red';
+                });
+        };
+
+        // Periodically send keep-alive messages
+        setInterval(sendKeepAlive, KEEP_ALIVE_INTERVAL);
+
+        // Check for disconnection if no keep-alive response
+        setInterval(() => {
+            if (!isConnected) {
+                statusLight.style.backgroundColor = 'red'; // Update light to red
+            }
+        }, DISCONNECT_TIMEOUT);
+    </script>
+</body>
+</html>

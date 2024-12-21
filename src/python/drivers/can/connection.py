@@ -6,7 +6,7 @@ import can
 from drivers.can import enums, messages
 
 ODriveCanMessageT = TypeVar("ODriveCanMessageT", bound="messages.OdriveCanMessage")
-_ODRIVE_BAUDRATE = 250_000
+_ODRIVE_BAUDRATE = 1_000_000
 
 
 class CANSimpleListener(can.Listener, Generic[ODriveCanMessageT]):

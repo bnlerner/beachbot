@@ -11,7 +11,7 @@ import pydantic
 import system_info
 
 _NODE_FILE_PATH = system_info.get_root_project_directory() / "src/python/node/"
-_CMD = "python3"
+_CMD = "/opt/anaconda3/bin/python3"
 _OPTIONS = "-u"
 
 
@@ -31,16 +31,28 @@ class NodeConfig(pydantic.BaseModel):
     ####################################################################################
 
     @classmethod
-    def rc_node(cls) -> NodeConfig:
-        return NodeConfig(file_name="rc_node.py", env_vars={"DISPLAY": ":1"})
+    def gnss_node(cls) -> NodeConfig:
+        return NodeConfig(file_name="gnss_node.py")
+
+    @classmethod
+    def imu_node(cls) -> NodeConfig:
+        return NodeConfig(file_name="imu_node.py")
+
+    @classmethod
+    def localizer_node(cls) -> NodeConfig:
+        return NodeConfig(file_name="localizer_node.py")
 
     @classmethod
     def motor_control_node(cls) -> NodeConfig:
         return NodeConfig(file_name="motor_control_node.py")
 
     @classmethod
-    def ublox_data_node(cls) -> NodeConfig:
-        return NodeConfig(file_name="ublox_data_node.py")
+    def navigation_server(cls) -> NodeConfig:
+        return NodeConfig(file_name="navigation_server.py")
+
+    @classmethod
+    def rc_node(cls) -> NodeConfig:
+        return NodeConfig(file_name="rc_node.py", env_vars={"DISPLAY": ":1"})
 
     @classmethod
     def ui_node(cls) -> NodeConfig:
@@ -126,6 +138,11 @@ class Orchestrator:
                 process.wait(5)
             except ProcessLookupError:
                 print(f"PID: {process.pid}, Unable to find process")
+            except subprocess.TimeoutExpired:
+                print(
+                    f"PID: {process.pid}, Timed out during shutdown. Killing process."
+                )
+                process.send_signal(signal.SIGKILL.value)
             else:
                 print(
                     f"PID: {process.pid}, Stopped process with result {process.returncode}"
@@ -150,15 +167,14 @@ class Orchestrator:
 def _gen_profile(profile: Literal["ui", "rc"]) -> List[NodeConfig]:
     if profile == "ui":
         return [
-            NodeConfig.ublox_data_node(),
+            NodeConfig.gnss_node(),
+            NodeConfig.imu_node(),
+            NodeConfig.localizer_node(),
             NodeConfig.motor_control_node(),
+            NodeConfig.navigation_server(),
             NodeConfig.ui_node(),
         ]
     elif profile == "rc":
-        return [
-            NodeConfig.ublox_data_node(),
-            NodeConfig.motor_control_node(),
-            NodeConfig.rc_node(),
-        ]
+        return [NodeConfig.motor_control_node(), NodeConfig.rc_node()]
     else:
         raise NotImplementedError(f"Unexpected profile: {profile}")
