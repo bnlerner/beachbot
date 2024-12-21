@@ -8,6 +8,8 @@ import rsplan
 
 
 class NavigationPath(pydantic.BaseModel):
+    """A path to navigate the robot along."""
+
     points: List[NavigationPoint]
     turn_radius: float
     step_size: float
@@ -44,6 +46,8 @@ class NavigationPath(pydantic.BaseModel):
 
 
 class NavigationPoint(pydantic.BaseModel):
+    """A single point the robot should navigate to."""
+
     point: geometry.Position
     # Yaw is an angle.
     yaw: float

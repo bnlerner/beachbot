@@ -1,11 +1,9 @@
-"""
-Hard Iron Offset Correction:
-Find the center of the distorted sphere by computing the mean of each axis:
-
-Subtract these offsets from the raw data.
-Soft Iron Scale Correction:
-Compute the scaling factor for each axis:
-
+"""A script to calibrate the magnetometer to ensure that hard and soft iron distortions
+are taken into account. Hard Iron Offset Correction is an object that distorts the
+magnetic field around the magnetometer. Script finds the center of the distorted sphere
+by computing the mean of each axis then subtract these offsets from the raw data. A soft
+iron scale correction is a distortion based on where the magnetometer is pointed. Script
+computes the scaling factor for each axis.
 """
 import math
 import os

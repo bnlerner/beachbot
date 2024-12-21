@@ -14,6 +14,8 @@ _RUNWAY_SIZE = 0.0
 
 
 class NavPathPlanner:
+    """Useful for planning the nav path to avoid obstacles from start to end."""
+
     def __init__(self, obstacles: List[primitives.Obstacle]):
         if len(obstacles) != 0:
             raise ValueError("Obstacles not supported at the moment.")

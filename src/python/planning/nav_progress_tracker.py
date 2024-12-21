@@ -12,6 +12,8 @@ _RAMP_WIDTH = 1.0
 
 
 class NavProgressTracker:
+    """Tracks the progress along the navigation path, providing useful information."""
+
     def __init__(self, nav_path: primitives.NavigationPath):
         self._nav_path = nav_path
 
