@@ -53,7 +53,7 @@ class MotorVelocityMessage(core.BaseMessage):
 
 
 class NavigateRequest(core.Request):
-    """A requres to navigate to a specific target location."""
+    """A requires to navigate to a specific target location."""
 
     target: geometry.Position
 
