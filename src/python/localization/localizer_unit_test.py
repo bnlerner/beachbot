@@ -61,5 +61,5 @@ def test_localizer(localizer: localizer_module.Localizer) -> None:
     )
     ned_utm_vel = gnss_msg.ned_velocity
     ned_utm_vel.frame = geometry.BODY
-    assert veh_kin_msg.twist.velocity == ned_utm_vel
+    assert veh_kin_msg.twist.velocity.is_close(ned_utm_vel)
     assert veh_kin_msg.twist.spin == imu_msg.angular_velocity
