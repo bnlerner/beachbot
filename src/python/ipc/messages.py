@@ -2,9 +2,18 @@ from typing import List
 
 import geometry
 from config import robot_config
+from drivers.camera import primitives as camera_primitives
 
 from ipc import core
 
+
+class CameraImageMessage(core.BaseMessage):
+    """Message containing a camera image."""
+
+    image: camera_primitives.Image
+
+    class Config:
+        arbitrary_types_allowed = True
 
 class GNSSMessage(core.BaseMessage):
     """Message containing the current location of the robot, its velocity and covariance."""

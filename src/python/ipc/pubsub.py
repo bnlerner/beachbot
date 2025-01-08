@@ -6,13 +6,15 @@ import time
 from multiprocessing.shared_memory import SharedMemory
 from typing import Callable, Generic, Optional, TypeVar
 
+import filelock
 import log
 from typing_helpers import req
 
 from ipc import core
 
-# In general no message size should exceed this number.
-_MSG_SIZE = 1000
+_LOCK_DIR = "/home/brianlerner/beachbot/var/locks/"
+_LOCK_SUFFIX = "-lock"
+
 # Minumum interval in seconds between when checking for a new message.
 _POLL_INTERVAL = 0.001
 
@@ -24,9 +26,11 @@ class Publisher(Generic[BaseMessageT]):
 
     def __init__(self, node_id: core.NodeID, channel: core.ChannelSpec):
         self._node_id = node_id
+        self._channel = channel
         self._shm = _init_shm(channel)
         # Should always be non-None because we just init the SHM file.
         self._shm_id = req(_get_shm_id(self._shm))
+        self._lock = _gen_lock(self._shm.name)
 
     def publish(self, msg: BaseMessageT) -> None:
         """Sends a message to the channel.
@@ -34,30 +38,43 @@ class Publisher(Generic[BaseMessageT]):
         NOTE: Messages are not queued and only the latest message can be
         read by the subscriber.
         """
-        if (cur_shm_id := _get_shm_id(self._shm)) is None:
-            log.error(
-                f"{self._node_id} is attempting to publish to SHM {self._shm.name} which is closed."
-            )
-            return
+        with self._lock:
+            if (cur_shm_id := _get_shm_id(self._shm)) is None:
+                log.error(
+                    f"{self._node_id} is attempting to publish to SHM {self._shm.name} which is closed."
+                )
+                return
 
-        _raise_if_shm_id_changed(self._shm_id, cur_shm_id)
-        msg.origin = self._node_id
-        msg.creation = time.perf_counter()
-        serialized_msg = pickle.dumps(msg)
-        self._write_to_shm(serialized_msg)
+            _raise_if_shm_id_changed(self._shm_id, cur_shm_id)
+            self._send_message(msg)
 
     def close(self) -> None:
         """Stops the publisher, closing any open data links permanently."""
-        _close(self._shm)
+        with self._lock:
+            _close(self._shm)
+
+    def _send_message(self, msg: BaseMessageT) -> None:
+        msg.origin = self._node_id
+        msg.creation = time.perf_counter()
+        serialized_msg = pickle.dumps(msg)
+        self._raise_if_message_too_large(serialized_msg)
+        self._write_to_shm(serialized_msg)
 
     def _write_to_shm(self, data: bytes) -> None:
         """Writes to SHM with a buffer if the message is not the exact size of the
         registry.
         """
-        buffer = b"\x00" * (_MSG_SIZE - len(data))
+        buffer = b"\x00" * (self._channel.msg_size - len(data))
         data_w_buffer = data + buffer
-        self._shm.buf[:_MSG_SIZE] = data_w_buffer
+        self._shm.buf[: self._channel.msg_size] = data_w_buffer
 
+    def _raise_if_message_too_large(self, msg: bytes) -> None:
+        if len(msg) > self._channel.msg_size:
+            raise ValueError(
+                "Message is larger than the channel size. "
+                f"Message size: {len(msg)}, "
+                f"Channel size: {self._channel.msg_size}"
+            )
 
 class Subscriber(Generic[BaseMessageT]):
     """A generic subscriber for receiving messages sent to a specific channel. Once
@@ -75,6 +92,7 @@ class Subscriber(Generic[BaseMessageT]):
         self._callback = callback
         # Should always be non-None because we just init the SHM file.
         self._shm_id = req(_get_shm_id(self._shm))
+        self._lock = _gen_lock(self._shm.name)
 
         # Prime last message so we only return new messages
         self._last_msg: Optional[BaseMessageT] = self._get_msg()
@@ -125,15 +143,19 @@ class Subscriber(Generic[BaseMessageT]):
         the channel.
         """
         self._running = False
-        _close(self._shm)
+        with self._lock:
+            _close(self._shm)
 
     def _get_msg(self) -> Optional[BaseMessageT]:
         try:
             # Copy the data to help avoid race conditions. Force an unpickling
             # error if the buffer is none.
-            data = bytes(self._shm.buf or b"\x00")
+            with self._lock:
+                data = bytes(self._shm.buf or b"\x00")
+
             msg = pickle.loads(data)
-        # Pickling errors can happen if the shm has no data. Set message to none.
+
+        # Pickling errors can happen if the shm has no data. Set message to None.
         except pickle.UnpicklingError:
             msg = None
 
@@ -171,11 +193,19 @@ def _shm_path(shm: SharedMemory) -> pathlib.Path:
 def _init_shm(channel: core.ChannelSpec) -> SharedMemory:
     name = channel.name()
     try:
-        shm = SharedMemory(name, create=True, size=_MSG_SIZE)
+        shm = SharedMemory(name, create=True, size=channel.msg_size)
     except FileExistsError:
         shm = SharedMemory(name)
 
     return shm
+
+
+def _gen_lock(shm_name: str) -> filelock._unix.UnixFileLock:
+    """Generates a thread agnostic filelock for the given shm name used to avoid race
+    conditions.
+    """
+    lock_path = _LOCK_DIR + shm_name + _LOCK_SUFFIX
+    return filelock._unix.UnixFileLock(lock_path, thread_local=False)
 
 
 @functools.lru_cache

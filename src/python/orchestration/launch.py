@@ -31,6 +31,10 @@ class NodeConfig(pydantic.BaseModel):
     ####################################################################################
 
     @classmethod
+    def camera_node(cls) -> NodeConfig:
+        return NodeConfig(file_name="camera_node.py")
+
+    @classmethod
     def gnss_node(cls) -> NodeConfig:
         return NodeConfig(file_name="gnss_node.py")
 
@@ -167,6 +171,7 @@ class Orchestrator:
 def _gen_profile(profile: Literal["ui", "rc"]) -> List[NodeConfig]:
     if profile == "ui":
         return [
+            NodeConfig.camera_node(),
             NodeConfig.gnss_node(),
             NodeConfig.imu_node(),
             NodeConfig.localizer_node(),

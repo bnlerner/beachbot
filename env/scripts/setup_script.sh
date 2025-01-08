@@ -24,6 +24,7 @@ cd beachbot && python3 -m pip install -r env/python_requirements/requirements.tx
 sudo bash -c "curl https://cdn.odriverobotics.com/files/odrive-udev-rules.rules > /etc/udev/rules.d/91-odrive.rules && udevadm control --reload-rules && udevadm trigger" && \
 sudo usermod -a -G dialout brianlerner && \
 sudo mkdir -p /var/log/beachbot && \
+sudp mkdir -p var/locks && \
 sudo chown brianlerner /var/log/beachbot && \
 sudo nmcli connection modify BrianPhone ipv4.route-metric 100 && \
 sudo nmcli connection modify BrianPhone connection.autoconnect-priority 100 && \
@@ -37,4 +38,5 @@ chmod +x ZED_SDK_Tegra_L4T35.4_v4.2.2.zstd.run && \
 sudo cp ~/beachbot/env/scripts/setup_can.sh /usr/local/bin/ && sudo chmod +x /usr/local/bin/setup_can.sh && \
 sudo cp env/systemd/*.service /etc/systemd/system/ && \
 sudo systemctl enable can_setup.service && sudo systemctl enable beachbot_startup.service && \
+sudo pip3 install -U jetson-stats && \
 sudo reboot

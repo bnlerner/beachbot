@@ -2,7 +2,7 @@ import asyncio
 import os
 import sys
 import time
-from typing import Any, Dict, Optional
+from typing import Any, AsyncGenerator, Dict, Optional
 
 from starlette import requests, responses, routing
 from starlette.staticfiles import StaticFiles
@@ -13,6 +13,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import log
 import system_info
 from controls import motor_velocity_controller
+from drivers.camera import primitives as camera_primitives
 from ipc import core, messages, registry, session
 from localization import gps_transformer, primitives
 from models import constants
@@ -47,6 +48,7 @@ class UINode(base_node.BaseNode):
         self._nav_task: Optional[asyncio.Task] = None
         self._client_sessions: Dict[str, float] = {}
         self._cur_tab: Optional[str] = None
+        self._latest_image: Optional[camera_primitives.Image] = None
 
         self.add_publishers(
             registry.Channels.MOTOR_CMD_FRONT_LEFT,
@@ -54,6 +56,9 @@ class UINode(base_node.BaseNode):
             registry.Channels.MOTOR_CMD_REAR_LEFT,
             registry.Channels.MOTOR_CMD_REAR_RIGHT,
             registry.Channels.STOP_MOTORS,
+        )
+        self.add_subscribers(
+            {registry.Channels.FRONT_CAMERA_IMAGE: self._receive_image}
         )
         self.add_request_clients(registry.Requests.NAVIGATE)
 
@@ -64,6 +69,7 @@ class UINode(base_node.BaseNode):
             routing.Route("/e-stop", self._e_stop, methods=["POST"]),
             routing.Route("/keep-alive", self._keep_alive, methods=["POST"]),
             routing.Route("/start-session", self._start_session, methods=["POST"]),
+            routing.Route("/video_feed", self._video_feed, methods=["GET"]),
             # Mount the static files directory
             routing.Mount(
                 "/",
@@ -73,6 +79,9 @@ class UINode(base_node.BaseNode):
         ]
         self.set_http_server(self._port, routes)
         self.add_looped_tasks({self._publish_rc_cmd_msgs: _CONTROL_RATE})
+
+    def _receive_image(self, msg: messages.CameraImageMessage) -> None:
+        self._latest_image = msg.image
 
     async def _tab_switch(self, request: requests.Request) -> responses.Response:
         if (data := await self._extract_data_from_request(request)) is None:
@@ -141,6 +150,27 @@ class UINode(base_node.BaseNode):
         return responses.JSONResponse(
             {"status": "success", "message": "Session started"}, 201
         )
+
+    async def _video_feed(
+        self, request: requests.Request
+    ) -> responses.StreamingResponse:
+        return responses.StreamingResponse(
+            self._generate_frames(),
+            media_type="multipart/x-mixed-replace; boundary=frame",
+        )
+
+    async def _generate_frames(self) -> AsyncGenerator[bytes, None]:
+        """Generates the image frames used in the video feed."""
+        while True:
+            if self._latest_image is not None and (
+                data := self._latest_image.serialized()
+            ):
+                yield (
+                    b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + data + b"\r\n"
+                )
+
+            # Throttle frame rate (~30 FPS)
+            await asyncio.sleep(0.03)
 
     def _update_rc_controller(self, data: Dict[str, str]) -> None:
         # Positive X is turn right

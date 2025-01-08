@@ -23,7 +23,11 @@
     </div>
     <div id="rc_tab" class="tab-content">
         <h3>Navigate by remote control using a joystick below</h3>
-        <div id="zone_joystick" style="float:left;width:100%;margin:0;padding:0;"></div>
+        <div id="zone_joystick" style="float:left;width:100%;margin:0;padding:0;">
+            <img id="video-feed" src="/video_feed" alt="Live Stream">
+            <!-- Placeholder Text When No Feed -->
+            <div id="placeholder">No video feed available</div>
+        </div>
         <!-- Display coordinates here -->
         <div id="coordinates">Turn (positive is right): 0, Drive (positive is forward): 0</div>
 
@@ -33,6 +37,8 @@
             // Initialize the joystick using NippleJS
             const joystickContainer = document.getElementById('zone_joystick');
             const coordinatesDisplay = document.getElementById('coordinates');
+            const videoFeed = document.getElementById('video-feed');
+            const placeholder = document.getElementById('placeholder');
             const PUBLISH_INTERVAL = 100; // 100 ms = 10 Hz
             let js_x = 0;
             let js_y = 0;
@@ -84,6 +90,49 @@
                     })
                 }).then(response => response.json())
                 .then(data => console.log(data))
+            };
+
+            // Adjust joystick zone based on video feed
+            function adjustJoystickZone() {
+                const videoWidth = videoFeed.naturalWidth;
+                const videoHeight = videoFeed.naturalHeight;
+                const viewportWidth = window.innerWidth;
+                const viewportHeight = window.innerHeight;
+
+                // Aspect ratio of the video
+                const videoAspectRatio = videoWidth / videoHeight;
+
+                // Viewport dimensions and aspect ratio
+                const viewportAspectRatio = viewportWidth / (viewportHeight / 2); // 50vh height
+
+                if (videoAspectRatio > viewportAspectRatio) {
+                    // Video is wider than viewport area
+                    joystickContainer.style.height = `${viewportWidth / videoAspectRatio}px`;
+                } else {
+                    // Video is taller than viewport area
+                    joystickContainer.style.height = `${viewportHeight / 2}px`;
+                }
+            }
+
+            // Show video and hide placeholder when feed is loaded
+            videoFeed.onload = function () {
+                videoFeed.style.display = 'block';
+                placeholder.classList.add('hidden');
+
+                adjustJoystickZone();
+            };
+        
+            // Event: Adjust on window resize
+            window.addEventListener('resize', adjustJoystickZone);
+
+            // Fallback if video feed is unavailable
+            videoFeed.onerror = function () {
+                videoFeed.style.display = 'none';
+                placeholder.classList.remove('hidden');
+
+                // Set default size
+                joystickZone.style.width = '100vw';
+                joystickZone.style.height = '50vh';
             };
 
             // Periodically send joystick command messages

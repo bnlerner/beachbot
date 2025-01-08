@@ -8,15 +8,19 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ipc import messages, pubsub, registry
 
-_MSG_TYPE = messages.GNSSMessage
-_CHANNEL = registry.Channels.GNSS
+_MSG_TYPE = messages.CameraImageMessage
+_CHANNEL = registry.Channels.FRONT_CAMERA_IMAGE
 _MSGS_RECEIVED = 0
 
 
 def _print_msg(msg: _MSG_TYPE) -> None:
     global _MSGS_RECEIVED
     _MSGS_RECEIVED += 1
-    print(f"{msg=}")
+    if image := msg.image.serialized():
+        length = len(image)
+    else:
+        length = 0
+    print(f"{msg.origin=}, {msg.creation=}, {length=}")
 
 
 async def main(sub: pubsub.Subscriber) -> None:
