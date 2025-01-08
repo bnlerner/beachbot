@@ -94,6 +94,10 @@ class BaseAngleType:
     def tan(self, attribute: Literal["roll", "pitch", "yaw"]) -> float:
         return math.tan(math.radians(getattr(self, attribute)))
 
+    def __repr__(self) -> str:
+        num_str = f"roll={self.roll:0.6g}, pitch={self.pitch:0.6g}, yaw={self.yaw:0.6g}"
+        return f"{self.__class__.__name__}({self.frame.value!r}, {num_str})"
+
 
 @dataclasses.dataclass
 class BaseVectorType:
@@ -222,6 +226,10 @@ class BaseVectorType:
     def __truediv__(self: BaseVectorTypeT, scalar: float) -> BaseVectorTypeT:
         scaled_x, scaled_y, scaled_z = self.x / scalar, self.y / scalar, self.z / scalar
         return self.__class__(self.frame, scaled_x, scaled_y, scaled_z)
+
+    def __repr__(self) -> str:
+        num_str = f"x={self.x:0.6g}, y={self.y:0.6g}, z={self.z:0.6g}"
+        return f"{self.__class__.__name__}({self.frame.value!r}, {num_str})"
 
 
 class Orientation(BaseAngleType):

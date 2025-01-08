@@ -1,8 +1,11 @@
 from geometry import cartesian_objects, frames, math_helpers
 
+ReferenceFrame = frames.ReferenceFrame
+BODY = frames.ReferenceFrame.BODY
+FRONT_CAMERA = frames.ReferenceFrame.FRONT_CAMERA
+REAR_CAMERA = frames.ReferenceFrame.REAR_CAMERA
 UTM = frames.ReferenceFrame.UTM
 VEHICLE = frames.ReferenceFrame.VEHICLE
-BODY = frames.ReferenceFrame.BODY
 
 BaseAngleType = cartesian_objects.BaseAngleType
 BaseVectorType = cartesian_objects.BaseVectorType

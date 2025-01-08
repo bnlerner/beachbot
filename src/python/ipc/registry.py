@@ -14,6 +14,9 @@ class Channels(SimpleNamespace):
     BODY_KINEMATICS = core.ChannelSpec[messages.VehicleKinematicsMessage](
         channel="vehicle_dynamics"
     )
+    FRONT_CAMERA_IMAGE = core.ChannelSpec[messages.CameraImageMessage](
+        channel="front_camera_image", msg_size=750_000
+    )
     IMU = core.ChannelSpec[messages.IMUMessage](channel="imu")
     GNSS = core.ChannelSpec[messages.GNSSMessage](channel="gnss")
     MOTOR_CMD_FRONT_LEFT = core.ChannelSpec[messages.MotorCommandMessage](
@@ -51,6 +54,7 @@ class Requests(SimpleNamespace):
 class NodeIDs(SimpleNamespace):
     """A registry of Node IDs available to use."""
 
+    CAMERA = core.NodeID(name="camera")
     GNSS = core.NodeID(name="gnss")
     IMU = core.NodeID(name="imu")
     LOCALIZER = core.NodeID(name="localizer")

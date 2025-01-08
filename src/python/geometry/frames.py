@@ -20,6 +20,10 @@ class ReferenceFrame(enum.Enum):
                                     VEHICLE
                                        |
                                       BODY
+                                       |
+                                -------+-------
+                                |             |
+                           FRONT_CAMERA   REAR_CAMERA
     """
 
     # A world frame defined in UTM.
@@ -32,3 +36,9 @@ class ReferenceFrame(enum.Enum):
     # The body frame is a convenience frame which defines the z-axis upward and the
     # x-axis pointed toward the front. Rotated 180 about the vehicle frame x-axis (roll)
     BODY = "BODY"
+
+    FRONT_CAMERA = "FRONT_CAMERA"
+    REAR_CAMERA = "REAR_CAMERA"
+
+    def __repr__(self) -> str:
+        return str(self)

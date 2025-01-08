@@ -41,6 +41,8 @@ class ChannelSpec(pydantic.BaseModel, Generic[BaseMessageT]):
     """
 
     channel: str
+    # Default channel message size. large enough for typical messages to pass.
+    msg_size: int = 1000
 
     def name(self) -> str:
         return self.channel
