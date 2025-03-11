@@ -17,6 +17,9 @@ class Channels(SimpleNamespace):
     FRONT_CAMERA_IMAGE = core.ChannelSpec[messages.CameraImageMessage](
         channel="front_camera_image", msg_size=750_000
     )
+    FRONT_OBSTACLES = core.ChannelSpec[messages.TrackedObjectsMessage](
+        channel="front_obstacles", msg_size=10_000
+    )
     IMU = core.ChannelSpec[messages.IMUMessage](channel="imu")
     GNSS = core.ChannelSpec[messages.GNSSMessage](channel="gnss")
     MOTOR_CMD_FRONT_LEFT = core.ChannelSpec[messages.MotorCommandMessage](
@@ -43,6 +46,10 @@ class Channels(SimpleNamespace):
     MOTOR_VELOCITY_REAR_RIGHT = core.ChannelSpec[messages.MotorVelocityMessage](
         channel="rear_right_motor_velocity"
     )
+    REAR_OBSTACLES = core.ChannelSpec[messages.TrackedObjectsMessage](
+        channel="rear_obstacles", msg_size=10_000
+    )
+
     STOP_MOTORS = core.ChannelSpec[messages.StopMotorsMessage](channel="stop_motors")
     TEST = core.ChannelSpec[messages.MotorCommandMessage](channel="test")
 

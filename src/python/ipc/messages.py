@@ -15,6 +15,7 @@ class CameraImageMessage(core.BaseMessage):
     class Config:
         arbitrary_types_allowed = True
 
+
 class GNSSMessage(core.BaseMessage):
     """Message containing the current location of the robot, its velocity and covariance."""
 
@@ -65,6 +66,13 @@ class NavigateRequest(core.Request):
     """A requires to navigate to a specific target location."""
 
     target: geometry.Position
+
+
+class TrackedObjectsMessage(core.BaseMessage):
+    """The tracked objects detected in front of or in the rear of the robot."""
+
+    frame: geometry.ReferenceFrame
+    objects: List[camera_primitives.TrackedObjects]
 
 
 class StopMotorsMessage(core.BaseMessage):

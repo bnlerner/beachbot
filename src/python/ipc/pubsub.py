@@ -76,6 +76,7 @@ class Publisher(Generic[BaseMessageT]):
                 f"Channel size: {self._channel.msg_size}"
             )
 
+
 class Subscriber(Generic[BaseMessageT]):
     """A generic subscriber for receiving messages sent to a specific channel. Once
     received, the message is passed to a callback function for processing.

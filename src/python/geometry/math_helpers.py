@@ -1,5 +1,5 @@
 import math
-from typing import Collection, Literal
+from typing import Collection, Literal, Tuple
 
 import numba as nb  # type: ignore[import-untyped]
 import numpy as np
@@ -378,3 +378,29 @@ def quaternion_to_euler(w: float, x: float, y: float, z: float) -> np.ndarray:
     yaw = math.atan2(t3, t4)
 
     return np.array([math.degrees(roll), math.degrees(pitch), math.degrees(yaw)])
+
+
+@nb.njit(nb.boolean(nb.types.UniTuple(nb.float64, 2), nb.float64[:, :]))
+def polygon_contains(point: Tuple[float, float], polygon: np.ndarray) -> bool:
+    """A raycasting algorithm to determine if the point is contained within the polygon
+    represented as a numpy array with polygon points.
+    """
+    px, py = point
+    intersection_count = 0
+    n = polygon.shape[0]
+
+    for i in range(n):
+        x1, y1 = polygon[i]
+        # Ensure the last edge connects to the first point
+        x2, y2 = polygon[(i + 1) % n]
+
+        # Check if the point is between y1 and y2
+        if (py > min(y1, y2)) and (py <= max(y1, y2)) and (px <= max(x1, x2)):
+            # Compute the intersection point's x-coordinate. Avoids division by zero.
+            x_intersect = x1 + (py - y1) * (x2 - x1) / (y2 - y1) if y1 != y2 else x1
+
+            # Count intersection if the point is to the left of it
+            if px < x_intersect:
+                intersection_count += 1
+
+    return intersection_count % 2 == 1

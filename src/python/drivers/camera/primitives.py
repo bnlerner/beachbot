@@ -11,6 +11,9 @@ from pyzed import sl  # type:ignore[import-untyped]
 from scipy.ndimage import distance_transform_edt  # type:ignore[import-untyped]
 
 _IMAGE_SCALE_PCT = 0.25
+_OBSTACLE_DISTANCE_THRESHOLD = 1.0
+_GREEN = (0, 255, 0)
+_RED = (0, 0, 255)
 
 
 class TrackedObjects(pydantic.BaseModel):
@@ -26,6 +29,10 @@ class TrackedObjects(pydantic.BaseModel):
     height: float
     length: float
     confidence: float
+
+    @property
+    def frame(self) -> geometry.ReferenceFrame:
+        return self.position.frame
 
     @classmethod
     def from_zed_object(
@@ -171,19 +178,18 @@ class Image:
             pt0, pt1 = obj.image_bounding_box
 
             # Draw bounding box
-            cv2.rectangle(self._array, pt0, pt1, (0, 255, 0), 2)
+            color = (
+                _GREEN
+                if obj.position.magnitude > _OBSTACLE_DISTANCE_THRESHOLD
+                else _RED
+            )
+            cv2.rectangle(self._array, pt0, pt1, color, 4)
 
             # Add label with confidence score
-            label = f"{obj.label.value} ({obj.confidence}%)"
+            label = f"{obj.label.value} ({obj.confidence:.1f}%)"
             text_pt = (pt0[0], pt1[1] - 10)
             cv2.putText(
-                self._array,
-                label,
-                text_pt,
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                (0, 255, 0),
-                2,
+                self._array, label, text_pt, cv2.FONT_HERSHEY_SIMPLEX, 2, color, 4
             )
 
     def reduce(self) -> None:

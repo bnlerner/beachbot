@@ -1,8 +1,9 @@
 import asyncio
+import collections
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from typing import List
+from typing import DefaultDict, List
 
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -13,9 +14,8 @@ from ipc import messages, registry
 
 from node import base_node
 
-# NOTE: Publish slightly slower than the grab rate as encoding the image with cv2 is
-# very slow and we should probably just use numpy instead.
-_IMAGE_PUBLISH_RATE = 8
+# NOTE: Publish slightly slower than the grab rate.
+_PUBLISH_RATE = 5
 
 
 class CameraNode(base_node.BaseNode):
@@ -30,30 +30,43 @@ class CameraNode(base_node.BaseNode):
         self._rear_camera = async_camera.AsyncCamera(geometry.REAR_CAMERA)
 
         self._depth_map: primitives.DepthMap
-        self._obstacles: List[primitives.TrackedObjects]
+        self._obstacles: DefaultDict[
+            geometry.ReferenceFrame, List[primitives.TrackedObjects]
+        ] = collections.defaultdict(lambda: [])
 
-        self.add_publishers(registry.Channels.FRONT_CAMERA_IMAGE)
+        self.add_publishers(
+            registry.Channels.FRONT_CAMERA_IMAGE,
+            registry.Channels.FRONT_OBSTACLES,
+            registry.Channels.REAR_OBSTACLES,
+        )
         self.add_tasks(self._process_cameras)
-        self.add_looped_tasks({self._publish_front_image: _IMAGE_PUBLISH_RATE})
+        self.add_looped_tasks(
+            {
+                self._publish_front_image: _PUBLISH_RATE,
+                self._publish_front_obstacles: _PUBLISH_RATE,
+                self._publish_rear_obstacles: _PUBLISH_RATE,
+            }
+        )
 
     async def _process_cameras(self) -> None:
         await self._start_cameras()
         with ThreadPoolExecutor(max_workers=4) as executor:
             forward_task = asyncio.create_task(
-                self._update_camera(self._forward_camera, executor)
+                self._update_camera(geometry.FRONT_CAMERA, executor)
             )
             rear_task = asyncio.create_task(
-                self._update_camera(self._rear_camera, executor)
+                self._update_camera(geometry.REAR_CAMERA, executor)
             )
             await asyncio.gather(forward_task, rear_task)
 
     async def _update_camera(
-        self, camera: async_camera.AsyncCamera, executor: ThreadPoolExecutor
+        self, frame: geometry.ReferenceFrame, executor: ThreadPoolExecutor
     ) -> None:
+        camera = self._get_camera(frame)
         while True:
             await camera.update(executor)
+            self._obstacles[frame] = camera.tracked_objects()
             await asyncio.sleep(0.01)
-            self._update_obstacle_map(camera)
 
     async def _start_cameras(self) -> None:
         with ThreadPoolExecutor(max_workers=1) as executor:
@@ -68,12 +81,27 @@ class CameraNode(base_node.BaseNode):
             msg = messages.CameraImageMessage(image=image)
             self.publish(registry.Channels.FRONT_CAMERA_IMAGE, msg)
 
-    def _update_obstacle_map(self, camera: async_camera.AsyncCamera) -> None:
-        if depth_map := camera.depth_map():
-            self._depth_map = depth_map
+    def _publish_front_obstacles(self) -> None:
+        obstacles = self._obstacles[geometry.FRONT_CAMERA]
+        msg = messages.TrackedObjectsMessage(
+            frame=geometry.FRONT_CAMERA, objects=obstacles
+        )
+        self.publish(registry.Channels.FRONT_OBSTACLES, msg)
 
-        if obstacles := camera.tracked_objects():
-            self._obstacles = obstacles
+    def _publish_rear_obstacles(self) -> None:
+        obstacles = self._obstacles[geometry.REAR_CAMERA]
+        msg = messages.TrackedObjectsMessage(
+            frame=geometry.REAR_CAMERA, objects=obstacles
+        )
+        self.publish(registry.Channels.REAR_OBSTACLES, msg)
+
+    def _get_camera(self, frame: geometry.ReferenceFrame) -> async_camera.AsyncCamera:
+        if frame == geometry.FRONT_CAMERA:
+            return self._forward_camera
+        elif frame == geometry.REAR_CAMERA:
+            return self._rear_camera
+        else:
+            raise ValueError(f"Unknown frame {frame=}")
 
     async def shutdown_hook(self) -> None:
         self._forward_camera.close()

@@ -39,4 +39,6 @@ sudo cp ~/beachbot/env/scripts/setup_can.sh /usr/local/bin/ && sudo chmod +x /us
 sudo cp env/systemd/*.service /etc/systemd/system/ && \
 sudo systemctl enable can_setup.service && sudo systemctl enable beachbot_startup.service && \
 sudo pip3 install -U jetson-stats && \
+wget https://ompl.kavrakilab.org/core/install-ompl-ubuntu.sh && chmod u+x install-ompl-ubuntu.sh && \
+./install-ompl-ubuntu.sh --python && \
 sudo reboot

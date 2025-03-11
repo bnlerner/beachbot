@@ -110,6 +110,7 @@ class Beachbot(pydantic.BaseModel):
 
     drivetrain: List[Drivetrain]
 
+    length: float = 0.750
     inner_axle_wheel_distance: float = 0.393
     # The distance between the two "axles" of the drivetrain.
     wheel_base: float = 0.405
@@ -123,6 +124,20 @@ class Beachbot(pydantic.BaseModel):
     mag_x_scalar: float = 26.25
     mag_y_scalar: float = 25.71875
     mag_z_scalar: float = 6.28125
+    # Antenna phase center offsets
+    l1_z_offset: float = 0.0069
+    l5_z_offset: float = 0.012
+    antenna_to_center: float = 0.352
+    ground_plane_to_cooler_rest: float = 0.104
+
+    @property
+    def width(self) -> float:
+        """Total width of the robot."""
+        return (
+            self.inner_axle_wheel_distance
+            + self.front_left_wheel.tread
+            + self.front_right_wheel.tread
+        )
 
     @property
     def track_width(self) -> float:
