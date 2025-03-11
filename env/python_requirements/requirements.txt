@@ -23,3 +23,9 @@ PyOpenGL==3.1.7
 adafruit-circuitpython-bno08x==1.2.7
 Jetson.GPIO==2.1.6
 opencv-python==4.10.0.84
+# To handle the cv2 missing import error too
+[mypy.plugins.numpy.*]
+follow_imports = silent
+
+[mypy-cv2.*]
+ignore_missing_imports = True
