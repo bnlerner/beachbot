@@ -10,6 +10,7 @@ import geometry
 import log
 from controls import nav_cascade_controller
 from ipc import messages, registry, session
+from mapping import obstacle_map
 from planning import nav_path_planner, nav_progress_tracker
 from typing_helpers import req
 
@@ -25,8 +26,9 @@ class NavigationServer(base_node.BaseNode):
 
     def __init__(self) -> None:
         super().__init__(registry.NodeIDs.NAVIGATION)
-        # No obstacles added for now.
-        self._nav_planner = nav_path_planner.NavPathPlanner([])
+
+        self._obstacle_map = obstacle_map.ObstacleMap()
+        self._nav_planner = nav_path_planner.NavPathPlanner(self._obstacle_map)
         self._request: Optional[messages.NavigateRequest] = None
         self._cur_pose: Optional[geometry.Pose] = None
         self._nav_progress_tracker: nav_progress_tracker.NavProgressTracker
@@ -35,7 +37,11 @@ class NavigationServer(base_node.BaseNode):
         self._robot_config = session.get_robot_config()
 
         self.add_subscribers(
-            {registry.Channels.BODY_KINEMATICS: self._update_body_kinematics_state}
+            {
+                registry.Channels.BODY_KINEMATICS: self._update_body_kinematics_state,
+                registry.Channels.FRONT_OBSTACLES: self._update_obstacles,
+                registry.Channels.REAR_OBSTACLES: self._update_obstacles,
+            }
         )
         self.add_publishers(
             registry.Channels.MOTOR_CMD_FRONT_LEFT,
@@ -70,6 +76,10 @@ class NavigationServer(base_node.BaseNode):
     ) -> None:
         self._cur_pose = msg.pose
         self._cur_twist = msg.twist
+
+    def _update_obstacles(self, msg: messages.TrackedObjectsMessage) -> None:
+        # TODO: Transform into map?
+        self._obstacle_map.update(msg.objects)
 
     async def _wait_for_kinematics(self) -> None:
         while self._cur_pose is None:

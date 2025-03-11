@@ -23,8 +23,8 @@ class Localizer:
         self._gnss_message: Optional[messages.GNSSMessage] = None
 
         self._gps_transformer = gps_transformer.GPSTransformer(utm_zone)
-        config = session.get_robot_config()
-        self._twist_estimator = twist_estimator.TwistEstimator(config)
+        self._config = session.get_robot_config()
+        self._twist_estimator = twist_estimator.TwistEstimator(self._config)
 
     def input_gnss_msg(self, msg: messages.GNSSMessage) -> None:
         self._gnss_message = msg
@@ -41,9 +41,10 @@ class Localizer:
 
     def vehicle_kin_msg(self) -> Optional[messages.VehicleKinematicsMessage]:
         if self._gnss_message is not None and self._imu_message is not None:
-            pose = self._calc_pose()
-            twist = self._calc_twist(pose.orientation)
-            return messages.VehicleKinematicsMessage(pose=pose, twist=twist)
+            gps_pose = self._calc_pose()
+            twist = self._calc_twist(gps_pose.orientation)
+            body_pose = self._transform_to_body(gps_pose)
+            return messages.VehicleKinematicsMessage(pose=body_pose, twist=twist)
         else:
             return None
 
@@ -110,3 +111,15 @@ class Localizer:
         body_velocity.frame = geometry.BODY
 
         return body_velocity
+
+    def _transform_to_body(self, gps_pose: geometry.Pose) -> geometry.Pose:
+        """The BODY pose is rigidly attached to the GPS pose with the same orientation
+        so it can be simply translated.
+        """
+        gps_antenna_z_offset = (self._config.l1_z_offset + self._config.l5_z_offset) / 2
+        z_offset = -(gps_antenna_z_offset + self._config.ground_plane_to_cooler_rest)
+        body_position = gps_pose.from_local(
+            -self._config.antenna_to_center, 0.0, z_offset
+        )
+
+        return geometry.Pose(body_position, gps_pose.orientation)

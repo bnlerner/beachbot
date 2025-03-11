@@ -16,6 +16,7 @@ Direction = cartesian_objects.Direction
 Rotation = cartesian_objects.Rotation
 Velocity = cartesian_objects.Velocity
 Pose = cartesian_objects.Pose
+Polygon = cartesian_objects.Polygon
 Twist = cartesian_objects.Twist
 AngularVelocity = cartesian_objects.AngularVelocity
 AngularAcceleration = cartesian_objects.AngularAcceleration

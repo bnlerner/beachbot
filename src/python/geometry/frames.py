@@ -34,7 +34,9 @@ class ReferenceFrame(enum.Enum):
     # the robot.
     VEHICLE = "VEHICLE"
     # The body frame is a convenience frame which defines the z-axis upward and the
-    # x-axis pointed toward the front. Rotated 180 about the vehicle frame x-axis (roll)
+    # x-axis pointed toward the front. Its origin is in the center of robot coplanar
+    # with the surface the cooler rests on. Frame is rotated 180 degrees about the
+    # VEHICLE frame x-axis (roll)
     BODY = "BODY"
 
     FRONT_CAMERA = "FRONT_CAMERA"

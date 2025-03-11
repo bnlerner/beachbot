@@ -1,7 +1,6 @@
-from typing import List
-
 import geometry
 import rsplan
+from mapping import obstacle_map as obstacle_map_module
 
 from planning import primitives
 
@@ -16,11 +15,8 @@ _RUNWAY_SIZE = 0.0
 class NavPathPlanner:
     """Useful for planning the nav path to avoid obstacles from start to end."""
 
-    def __init__(self, obstacles: List[primitives.Obstacle]):
-        if len(obstacles) != 0:
-            raise ValueError("Obstacles not supported at the moment.")
-
-        self._obstacles = obstacles
+    def __init__(self, obstacle_map: obstacle_map_module.ObstacleMap):
+        self._obstacle_map = obstacle_map
 
     def gen_path(
         self, start: geometry.Pose, end: geometry.Position

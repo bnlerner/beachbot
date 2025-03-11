@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import math
-from typing import Literal, Tuple, Type, TypeVar, Union, overload
+from typing import List, Literal, Tuple, Type, TypeVar, Union, overload
 
 import numpy as np
 
@@ -370,6 +370,11 @@ class Acceleration(BaseVectorType):
         return Acceleration(self.frame, self.x, self.y, 0)
 
 
+########################################################################################
+# Objects containing other cartesian objects ###########################################
+########################################################################################
+
+
 @dataclasses.dataclass
 class Pose:
     """A pose in 3D cartesian space with a position and orientation."""
@@ -493,3 +498,38 @@ def _raise_if_frames_different(*objs: Union[BaseAngleType, BaseVectorType]) -> N
     obj_frames = set(obj.frame for obj in objs)
     if len(obj_frames) > 1:
         raise ValueError(f"Multiple frames found: {obj_frames=}")
+
+
+@dataclasses.dataclass
+class Polygon:
+    """An XY polygon made up of at least 3 points."""
+
+    points: List[Position]
+
+    def __post_init__(self) -> None:
+        _raise_if_frames_different(*self.points)
+        self._raise_if_not_enough_points()
+
+    @property
+    def frame(self) -> frames.ReferenceFrame:
+        return self.points[0].frame
+
+    @functools.cached_property
+    def array(self) -> np.ndarray:
+        return np.array([pt.data[:2] for pt in self.points])
+
+    def contains(self, point: Position) -> frames.ReferenceFrame:
+        """Whether the point is contained within the polygon. Points on the Polygon line
+        are considered contained inside of it.
+        """
+        pt_2d = point.data[:2]
+        return math_helpers.polygon_contains(pt_2d, self.array)
+
+    def _raise_if_not_enough_points(self) -> None:
+        if len(self.points) < 3:
+            raise ValueError(f"Not enough points to make a Polygon {self.points=}")
+
+
+@dataclasses.dataclass
+class Plane:
+    ...

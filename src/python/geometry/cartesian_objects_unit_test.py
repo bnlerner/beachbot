@@ -128,3 +128,39 @@ def test_euler_to_quaternion(roll: float, pitch: float, yaw: float) -> None:
     assert np.isclose(test_roll, roll)
     assert np.isclose(test_pitch, pitch)
     assert np.isclose(test_yaw, yaw)
+
+
+def test_polygon_contains() -> None:
+    square = geometry.Polygon(
+        [
+            geometry.Position(geometry.UTM, 0.0, 0.0),
+            geometry.Position(geometry.UTM, 0.0, 10.0),
+            geometry.Position(geometry.UTM, 10.0, 10.0),
+            geometry.Position(geometry.UTM, 10.0, 0.0),
+        ]
+    )
+    center = geometry.Position(geometry.UTM, 5.0, 5.0)
+    on_line = geometry.Position(geometry.UTM, 0.0, 5.0)
+    outside_0 = geometry.Position(geometry.UTM, 15.0, 15.0)
+    outside_1 = geometry.Position(geometry.UTM, -1.0, 3.0)
+    outside_2 = geometry.Position(geometry.UTM, 1.0, -3.0)
+    outside_3 = geometry.Position(geometry.UTM, -0.00001, 3.0)
+
+    assert square.contains(center)
+    assert square.contains(on_line)
+    assert not square.contains(outside_0)
+    assert not square.contains(outside_1)
+    assert not square.contains(outside_2)
+    assert not square.contains(outside_3)
+
+    convex = geometry.Polygon(
+        [
+            geometry.Position(geometry.UTM, 0.0, 0.0),
+            geometry.Position(geometry.UTM, 0.0, 10.0),
+            geometry.Position(geometry.UTM, 10.0, 10.0),
+            geometry.Position(geometry.UTM, 1.0, 5.0),
+            geometry.Position(geometry.UTM, 10.0, 0.0),
+        ]
+    )
+
+    assert not convex.contains(center)
