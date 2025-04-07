@@ -1,11 +1,17 @@
 from geometry import cartesian_objects, frames, math_helpers
 
 ReferenceFrame = frames.ReferenceFrame
+# Frames for beachbot robot
 BODY = frames.ReferenceFrame.BODY
 FRONT_CAMERA = frames.ReferenceFrame.FRONT_CAMERA
 REAR_CAMERA = frames.ReferenceFrame.REAR_CAMERA
 UTM = frames.ReferenceFrame.UTM
 VEHICLE = frames.ReferenceFrame.VEHICLE
+# Frames for robot arm
+HAND = frames.ReferenceFrame.HAND
+FOREARM = frames.ReferenceFrame.FOREARM
+ARM = frames.ReferenceFrame.ARM
+BASE = frames.ReferenceFrame.BASE
 
 BaseAngleType = cartesian_objects.BaseAngleType
 BaseVectorType = cartesian_objects.BaseVectorType
