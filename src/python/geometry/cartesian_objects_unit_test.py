@@ -164,3 +164,26 @@ def test_polygon_contains() -> None:
     )
 
     assert not convex.contains(center)
+
+
+@pytest.mark.parametrize(
+    "roll, pitch, yaw", [(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (30.0, 20.0, 10.0)]
+)
+def test_orientation_to_from_quaternion(roll: float, pitch: float, yaw: float) -> None:
+    """Test creating an orientation from a quaternion."""
+    ori = geometry.Orientation(geometry.UTM, roll, pitch, yaw)
+    q_w_c, q_x_c, q_y_c, q_z_c = ori.as_quaternion()
+
+    sst_rot = sst.Rotation.from_euler("xyz", [roll, pitch, yaw], degrees=True)
+    q_x, q_y, q_z, q_w = sst_rot.as_quat()
+
+    ori_calc = geometry.Orientation.from_quaternion(geometry.UTM, q_w, q_x, q_y, q_z)
+
+    assert geometry.is_close(ori_calc.roll, roll, atol=1.0e-10)
+    assert geometry.is_close(ori_calc.pitch, pitch, atol=1.0e-10)
+    assert geometry.is_close(ori_calc.yaw, yaw, atol=1.0e-10)
+
+    assert geometry.is_close(q_w_c, q_w, atol=1.0e-10)
+    assert geometry.is_close(q_x_c, q_x, atol=1.0e-10)
+    assert geometry.is_close(q_y_c, q_y, atol=1.0e-10)
+    assert geometry.is_close(q_z_c, q_z, atol=1.0e-10)

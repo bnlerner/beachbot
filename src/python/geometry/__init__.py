@@ -35,6 +35,7 @@ euler_to_quaternion = math_helpers.euler_to_quaternion
 linear_ramp = math_helpers.linear_ramp
 clip = math_helpers.clip
 mean = math_helpers.mean
+is_close = math_helpers.is_close
 
 
 # Some common conversions.
