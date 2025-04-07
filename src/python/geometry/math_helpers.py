@@ -227,9 +227,10 @@ def VecSO3(w_hat: np.ndarray) -> np.ndarray:
 
 
 # Functions that need to be compiled before functions that depend it
-@nb.njit(nb.boolean(nb.float64, nb.float64))
-def _is_close(a: float, b: float) -> bool:
-    return np.abs(a - b) < 1.0e-15
+# TODO: Fix this signature so we can use types
+@nb.njit
+def is_close(a: float, b: float, atol: float = 1.0e-15) -> bool:
+    return np.abs(a - b) < atol
 
 
 @nb.njit(_F64_VECTOR(_F64_MATRIX))
@@ -239,16 +240,16 @@ def log_SO3(rot: np.ndarray) -> np.ndarray:
     The vector in R3 is the rotation vector of the rotation matrix R.
     """
     r_trace = np.trace(rot)
-    if _is_close(r_trace, 3.0):
+    if is_close(r_trace, 3.0):
         return np.zeros(3)
 
     phy = np.arccos((r_trace - 1.0) / 2.0)
     if abs(phy) > np.pi:
         raise ValueError("Angle larger than pi")
 
-    if _is_close(phy, 0.0):
+    if is_close(phy, 0.0):
         w = np.zeros(3)
-    elif _is_close(phy, np.pi):
+    elif is_close(phy, np.pi):
         A = (rot - np.eye(3)) / 2.0
 
         A_11 = A[0, 0]
@@ -262,13 +263,13 @@ def log_SO3(rot: np.ndarray) -> np.ndarray:
         A_12 = A[0, 1]
         A_13 = A[0, 2]
         A_23 = A[1, 2]
-        if not _is_close(w1, 0):
+        if not is_close(w1, 0):
             if A_12 < 0:
                 w2 = -w2
             if A_13 < 0:
                 w3 = -w3
 
-        elif not _is_close(w2, 0):
+        elif not is_close(w2, 0):
             if A_23 < 0:
                 w3 = -w3
 
