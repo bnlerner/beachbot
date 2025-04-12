@@ -41,6 +41,7 @@ def mean(values: Collection[float]) -> float:
 
 
 def wrap_degrees(angle: float) -> float:
+    """Wraps the angle to the range [-180, 180]."""
     return ((angle + 180) % 360) - 180
 
 
@@ -227,7 +228,6 @@ def VecSO3(w_hat: np.ndarray) -> np.ndarray:
 
 
 # Functions that need to be compiled before functions that depend it
-# TODO: Fix this signature so we can use types
 @nb.njit
 def is_close(a: float, b: float, atol: float = 1.0e-15) -> bool:
     return np.abs(a - b) < atol
@@ -358,10 +358,10 @@ def quaternion_to_euler(w: float, x: float, y: float, z: float) -> np.ndarray:
     Normalizes the quaternion for you before performing the conversion.
     """
     norm = (w**2 + x**2 + y**2 + z**2) ** 0.5
-    w = w / norm
-    x = x / norm
-    y = y / norm
-    z = z / norm
+    w /= norm
+    x /= norm
+    y /= norm
+    z /= norm
 
     # Roll (x-axis rotation)
     t0 = 2.0 * (w * x + y * z)
@@ -405,3 +405,28 @@ def polygon_contains(point: Tuple[float, float], polygon: np.ndarray) -> bool:
                 intersection_count += 1
 
     return intersection_count % 2 == 1
+
+
+@nb.njit(
+    _F64_MATRIX(nb.float64, nb.float64, nb.float64, nb.float64, nb.float64, nb.float64)
+)
+def create_rpy_transform(
+    x: float, y: float, z: float, roll: float, pitch: float, yaw: float
+) -> np.ndarray:
+    """Create a 4x4 homogeneous transformation matrix from xyz translation and roll,
+    pitch, yaw rotations (degrees). First applies the rotations (roll around X, pitch
+    around Y, yaw around Z) and then applies the translation.
+    """
+    # Create rotation matrix using extrinsic XYZ convention (same as roll, pitch, yaw)
+    rot = extrinsic_xyz_rotation_matrix(
+        math.radians(roll), math.radians(pitch), math.radians(yaw)
+    )
+
+    # Create homogeneous transformation matrix
+    transform = np.eye(4)
+    transform[:3, :3] = rot
+    transform[0, 3] = x
+    transform[1, 3] = y
+    transform[2, 3] = z
+
+    return transform
