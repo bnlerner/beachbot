@@ -24,6 +24,17 @@ class ReferenceFrame(enum.Enum):
                                 -------+-------
                                 |             |
                            FRONT_CAMERA   REAR_CAMERA
+
+    Adds a robot arm frame coordinate system which is used describe the frames in each
+    joint.
+
+                                      BASE
+                                       |
+                                      ARM
+                                       |
+                                    FOREARM
+                                       |
+                                     HAND
     """
 
     # A world frame defined in UTM.
@@ -41,6 +52,11 @@ class ReferenceFrame(enum.Enum):
 
     FRONT_CAMERA = "FRONT_CAMERA"
     REAR_CAMERA = "REAR_CAMERA"
+
+    HAND = "HAND"
+    FOREARM = "FOREARM"
+    ARM = "ARM"
+    BASE = "BASE"
 
     def __repr__(self) -> str:
         return str(self)

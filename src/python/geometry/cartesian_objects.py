@@ -247,6 +247,22 @@ class Orientation(BaseAngleType):
         )
         return Orientation.from_matrix(frame, rot_matrix)
 
+    @classmethod
+    def from_quaternion(
+        cls, frame: frames.ReferenceFrame, w: float, x: float, y: float, z: float
+    ) -> Orientation:
+        """Create an Orientation from a quaternion where w is the scalar part of the
+        quaternion and x, y, z are the vector part of the quaternion.
+        """
+        roll, pitch, yaw = math_helpers.quaternion_to_euler(w, x, y, z)
+
+        return cls(frame=frame, roll=roll, pitch=pitch, yaw=yaw)
+
+    def as_quaternion(self) -> Tuple[float, float, float, float]:
+        """Returns the quaternion representation of the orientation."""
+        w, x, y, z = math_helpers.euler_to_quaternion(self.roll, self.pitch, self.yaw)
+        return w, x, y, z
+
     def as_rotation(self) -> Rotation:
         return Rotation(self.frame, self.roll, self.pitch, self.yaw)
 
