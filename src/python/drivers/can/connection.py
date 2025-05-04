@@ -5,17 +5,17 @@ import can
 
 from drivers.can import enums, messages
 
-ODriveCanMessageT = TypeVar("ODriveCanMessageT", bound="messages.OdriveCanMessage")
-_ODRIVE_BAUDRATE = 1_000_000
+CanMessageT = TypeVar("CanMessageT", bound="messages.CanMessage")
+_BAUDRATE = 1_000_000
 
 
-class CANSimpleListener(can.Listener, Generic[ODriveCanMessageT]):
+class CANSimpleListener(can.Listener, Generic[CanMessageT]):
     """Listens to CAN messages and provides ways to add callbacks or get the message
     if desired.
     """
 
     def __init__(
-        self, msg_class: Type[ODriveCanMessageT], *, callback: Optional[Callable] = None
+        self, msg_class: Type[CanMessageT], *, callback: Optional[Callable] = None
     ):
         self._msg_class = msg_class
         self._callback = callback
@@ -31,11 +31,11 @@ class CANSimpleListener(can.Listener, Generic[ODriveCanMessageT]):
     def on_error(self, exc: Exception) -> None:
         self._bus_error = exc
 
-    async def get_message(self) -> ODriveCanMessageT:
+    async def get_message(self) -> CanMessageT:
         can_msg = await self._can_msg_queue.get()
         return self._msg_class.from_can_message(can_msg)
 
-    async def wait_for_message(self, duration: float) -> Optional[ODriveCanMessageT]:
+    async def wait_for_message(self, duration: float) -> Optional[CanMessageT]:
         try:
             can_msg = await asyncio.wait_for(self._can_msg_queue.get(), duration)
             return self._msg_class.from_can_message(can_msg)
@@ -64,7 +64,7 @@ class CANSimple:
         self, can_interface: enums.CANInterface, bustype: enums.BusType
     ) -> None:
         self._can_bus = can.interface.Bus(
-            can_interface.value, interface=bustype.value, bitrate=_ODRIVE_BAUDRATE
+            can_interface.value, interface=bustype.value, bitrate=_BAUDRATE
         )
         self._flush_bus()
         self._notifier: Optional[can.Notifier] = None
@@ -73,7 +73,7 @@ class CANSimple:
         self._reader = can.AsyncBufferedReader()
 
     def register_callbacks(
-        self, *msg_cls_callbacks: Tuple[Type[messages.OdriveCanMessage], Callable]
+        self, *msg_cls_callbacks: Tuple[Type[messages.CanMessage], Callable]
     ) -> None:
         """Registers callbacks on receiving a message."""
         for msg_cls, callback in msg_cls_callbacks:
@@ -82,7 +82,7 @@ class CANSimple:
 
             self._listeners.append(CANSimpleListener(msg_cls, callback=callback))
 
-    async def send(self, msg: messages.OdriveCanMessage) -> None:
+    async def send(self, msg: messages.CanMessage) -> None:
         """Sends a CAN message."""
         can_msg = msg.as_can_message()
         self._can_bus.send(can_msg)

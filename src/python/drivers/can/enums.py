@@ -11,4 +11,5 @@ class CANInterface(enum.Enum):
     """Specifies the CAN interfaces."""
 
     ODRIVE = "can0"
+    MYACTUATOR = "can0"
     VIRTUAL = "vcan"
