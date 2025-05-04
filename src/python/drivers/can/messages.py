@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import struct
-from typing import Any, Dict, Literal, Type, TypeVar, Union
+from typing import Any, Dict, Literal, Type, TypeVar, Union, cast
 
 import can
 import pydantic
 from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 
+CanMessageT = TypeVar("CanMessageT", bound="CanMessage")
 OdriveCanMessageT = TypeVar("OdriveCanMessageT", bound="OdriveCanMessage")
+MyActuatorCanMessageT = TypeVar("MyActuatorCanMessageT", bound="MyActuatorCanMessage")
+
 # The possible formatting characters that we can use to deserialize the
 # data sent via the CAN bus.
 # See https://docs.python.org/3/library/struct.html#format-characters
@@ -50,7 +53,7 @@ _BYTE_SIZE_LOOKUP: Dict[VALUE_TYPES, int] = {
 }
 
 
-class _ArbitrationID(pydantic.BaseModel):
+class _OdriveArbitrationID(pydantic.BaseModel):
     """CAN arbitration ID is used to uniquely identify the message by the node and
     the command id.
     """
@@ -59,7 +62,7 @@ class _ArbitrationID(pydantic.BaseModel):
     cmd_id: int
 
     @classmethod
-    def from_can_message(cls, msg: can.Message) -> _ArbitrationID:
+    def from_can_message(cls, msg: can.Message) -> _OdriveArbitrationID:
         return cls(
             node_id=(msg.arbitration_id >> 5), cmd_id=(msg.arbitration_id & 0b11111)
         )
@@ -72,8 +75,41 @@ class _ArbitrationID(pydantic.BaseModel):
         return hash((self.node_id, self.cmd_id))
 
 
-class OdriveCanMessage:
-    """A class representing different types of ODrive CAN messages that can be
+class _MyActuatorArbitrationID(pydantic.BaseModel):
+    """CAN arbitration ID is used to uniquely identify the message by the node and
+    the command id.
+    """
+
+    node_id: int
+    cmd_id: int
+
+    @classmethod
+    def from_can_message(cls, msg: can.Message) -> _MyActuatorArbitrationID:
+        # MyActuator format - see motor_protocol.md
+        # Single motor: 0x140+ID (node_id 1-32) for sending, 0x240+ID for receiving
+        # Extract node_id by subtracting the base (0x140 or 0x240)
+        if 0x140 <= msg.arbitration_id < 0x160:  # Command message
+            return cls(
+                node_id=(msg.arbitration_id - 0x140),
+                cmd_id=msg.data[0],  # Command is first byte of data
+            )
+        elif 0x240 <= msg.arbitration_id < 0x260:  # Reply message
+            return cls(
+                node_id=(msg.arbitration_id - 0x240),
+                cmd_id=msg.data[0],  # Command is first byte of data
+            )
+        # Multi-motor command messages and motion mode control messages are not yet implemented
+        else:
+            raise ValueError(f"Invalid MyActuator arbitration ID: {msg.arbitration_id}")
+
+    @property
+    def value(self) -> int:
+        # For sending to motor, use 0x140+ID format
+        return 0x140 + self.node_id
+
+
+class CanMessage:
+    """A class representing different types of CAN messages that can be
     sent to the node and received from the node.
     """
 
@@ -81,14 +117,10 @@ class OdriveCanMessage:
 
     def __init__(self, node_id: int, **kwargs: Any):
         self._node_id = node_id
-        self._arbitration_id = _ArbitrationID(node_id=node_id, cmd_id=self.cmd_id)
+        self._arbitration_id = self._gen_arbitration_id()
 
         for arg_name, value in kwargs.items():
             setattr(self, arg_name, value)
-
-    @property
-    def arbitration_id(self) -> _ArbitrationID:
-        return self._arbitration_id
 
     @property
     def node_id(self) -> int:
@@ -96,22 +128,18 @@ class OdriveCanMessage:
 
     @classmethod
     def matches(cls, msg: can.Message) -> bool:
-        arbitration_id = _ArbitrationID.from_can_message(msg)
-        return cls.cmd_id == arbitration_id.cmd_id
+        raise NotImplementedError
+
+    def _gen_arbitration_id(
+        self,
+    ) -> Union[_OdriveArbitrationID, _MyActuatorArbitrationID]:
+        raise NotImplementedError
 
     @classmethod
-    def from_can_message(
-        cls: Type[OdriveCanMessageT], msg: can.Message
-    ) -> OdriveCanMessageT:
-        arbitration_id = _ArbitrationID.from_can_message(msg)
-        if not cls.matches(msg):
-            raise ValueError(
-                f"CAN message does not match the class desired {cls.__name__}!"
-            )
-
-        message = cls(node_id=arbitration_id.node_id)
-        message._parse_can_msg_data(msg)
-        return message
+    def from_can_message(cls: Type[CanMessageT], msg: can.Message) -> CanMessageT:
+        """Convert a CAN message to a specific message type.
+        This needs to be implemented by subclasses."""
+        raise NotImplementedError
 
     def as_can_message(self) -> can.Message:
         return can.Message(
@@ -133,8 +161,327 @@ class OdriveCanMessage:
         return f"{self.__class__.__name__}({values_str})"
 
 
+class MyActuatorCanMessage(CanMessage):
+    """A class representing different types of MyActuator CAN messages that can be
+    sent to the node and received from the node.
+
+    Protocol specification from motor_protocol.md:
+    - Single motor command sending: 0x140+ID (1~32)
+    - Multi-motor command sending: 0x280 (not implemented yet)
+    - Reply: 0x240+ID (1~32)
+    - DLC: 8 bytes (always)
+
+    Message format:
+    DATA[0] = Command byte
+    DATA[1] to DATA[7] = Command-specific data
+    """
+
+    @property
+    def arbitration_id(self) -> _MyActuatorArbitrationID:
+        return cast(_MyActuatorArbitrationID, self._arbitration_id)
+
+    @classmethod
+    def matches(cls, msg: can.Message) -> bool:
+        # For MyActuator, we match based on command byte in the data
+        if 0x140 <= msg.arbitration_id < 0x160 or 0x240 <= msg.arbitration_id < 0x260:
+            return msg.data[0] == cls.cmd_id
+        return False
+
+    @classmethod
+    def from_can_message(
+        cls: Type[MyActuatorCanMessageT], msg: can.Message
+    ) -> MyActuatorCanMessageT:
+        if not cls.matches(msg):
+            raise ValueError(
+                f"CAN message does not match the class desired {cls.__name__}!"
+            )
+
+        # For MyActuator, extract node_id from arbitration_id
+        if 0x140 <= msg.arbitration_id < 0x160:
+            node_id = msg.arbitration_id - 0x140
+        elif 0x240 <= msg.arbitration_id < 0x260:
+            node_id = msg.arbitration_id - 0x240
+        else:
+            raise ValueError(f"Invalid MyActuator arbitration ID: {msg.arbitration_id}")
+
+        message = cls(node_id=node_id)
+        message._parse_can_msg_data(msg)
+        return message
+
+    def _gen_arbitration_id(self) -> _MyActuatorArbitrationID:
+        return _MyActuatorArbitrationID(node_id=self.node_id, cmd_id=self.cmd_id)
+
+    def _gen_can_msg_data(self) -> bytes:
+        """Generate 8-byte data array for MyActuator message format."""
+        # Default implementation - command byte followed by zeros
+        # Override in subclasses for specific message types
+        return bytes([self.cmd_id, 0, 0, 0, 0, 0, 0, 0])
+
+
+class OdriveCanMessage(CanMessage):
+    """A class representing different types of ODrive CAN messages that can be
+    sent to the node and received from the node.
+    """
+
+    @property
+    def arbitration_id(self) -> _OdriveArbitrationID:
+        return cast(_OdriveArbitrationID, self._arbitration_id)
+
+    @classmethod
+    def matches(cls, msg: can.Message) -> bool:
+        arbitration_id = _OdriveArbitrationID.from_can_message(msg)
+        return cls.cmd_id == arbitration_id.cmd_id
+
+    @classmethod
+    def from_can_message(
+        cls: Type[OdriveCanMessageT], msg: can.Message
+    ) -> OdriveCanMessageT:
+        arbitration_id = _OdriveArbitrationID.from_can_message(msg)
+        if not cls.matches(msg):
+            raise ValueError(
+                f"CAN message does not match the class desired {cls.__name__}!"
+            )
+
+        message = cls(node_id=arbitration_id.node_id)
+        message._parse_can_msg_data(msg)
+        return message
+
+
 ########################################################################################
-# CYCLIC MESSAGES ######################################################################
+# MYACTUATOR MESSAGES #################################################################
+########################################################################################
+
+
+class ReadMotorStatus1Message(MyActuatorCanMessage):
+    """Reads the current motor temperature, voltage and error status flags."""
+
+    cmd_id = 0x9A
+
+    # Motor temperature (int8_t type, unit 1°C/LSB)
+    temperature: int
+    # Brake release command (1 = brake released, 0 = brake locked)
+    brake_released: bool
+    # Voltage (uint16_t type, unit 0.1V/LSB)
+    voltage: float
+    # Error flags (uint16_t type, bits represent different motor states)
+    error_state: int
+
+    def _parse_can_msg_data(self, msg: can.Message) -> None:
+        self.temperature = msg.data[1]
+        self.brake_released = bool(msg.data[3])
+
+        # Voltage in DATA[4] (low byte) and DATA[5] (high byte)
+        voltage_raw = (msg.data[5] << 8) | msg.data[4]
+        self.voltage = voltage_raw * 0.1  # 0.1V/LSB
+
+        # Error state in DATA[6] (low byte) and DATA[7] (high byte)
+        self.error_state = (msg.data[7] << 8) | msg.data[6]
+
+
+class ReadMotorStatus2Message(MyActuatorCanMessage):
+    """Reads the temperature, speed and encoder position of the current motor."""
+
+    cmd_id = 0x9C
+
+    # Motor temperature (int8_t type, 1°C/LSB)
+    temperature: int
+    # Torque current value (int16_t type, 0.01A/LSB)
+    torque_current: float
+    # Motor output shaft speed (int16_t type, 1dps/LSB)
+    speed: int
+    # Motor output shaft angle (int16_t type, 1degree/LSB, range ±32767 degree)
+    angle: int
+
+    def _parse_can_msg_data(self, msg: can.Message) -> None:
+        self.temperature = msg.data[1]
+
+        # Torque current in DATA[2] (low byte) and DATA[3] (high byte)
+        current_raw = (msg.data[3] << 8) | msg.data[2]
+        if current_raw > 32767:  # Handle negative values (2's complement)
+            current_raw -= 65536
+        self.torque_current = current_raw * 0.01  # 0.01A/LSB
+
+        # Speed in DATA[4] (low byte) and DATA[5] (high byte)
+        speed_raw = (msg.data[5] << 8) | msg.data[4]
+        if speed_raw > 32767:  # Handle negative values (2's complement)
+            speed_raw -= 65536
+        self.speed = speed_raw
+
+        # Angle in DATA[6] (low byte) and DATA[7] (high byte)
+        angle_raw = (msg.data[7] << 8) | msg.data[6]
+        if angle_raw > 32767:  # Handle negative values (2's complement)
+            angle_raw -= 65536
+        self.angle = angle_raw
+
+
+class TorqueControlCommand(MyActuatorCanMessage):
+    """Command to control the torque and current output of the motor."""
+
+    cmd_id = 0xA1
+
+    # Torque current control value (int16_t type, 0.01A/LSB)
+    torque_current: float
+
+    def __init__(self, node_id: int, torque_current: float = 0.0, **kwargs: Any):
+        super().__init__(node_id, **kwargs)
+        self.torque_current = torque_current
+
+    def _gen_can_msg_data(self) -> bytes:
+        # Convert torque_current to int16_t value
+        torque_raw = int(self.torque_current * 100)  # Convert to 0.01A/LSB
+
+        # Clamp to int16_t range
+        torque_raw = max(-32768, min(32767, torque_raw))
+
+        # Create data bytes - cmd_id followed by zeros, then torque value in bytes 4-5
+        data = bytearray(
+            [self.cmd_id, 0, 0, 0, torque_raw & 0xFF, (torque_raw >> 8) & 0xFF, 0, 0]
+        )
+        return bytes(data)
+
+
+class SpeedControlCommand(MyActuatorCanMessage):
+    """Command to control the speed of the motor output shaft."""
+
+    cmd_id = 0xA2
+
+    # Speed control value (int32_t type, 0.01dps/LSB)
+    speed: float
+
+    def __init__(self, node_id: int, speed: float = 0.0, **kwargs: Any):
+        super().__init__(node_id, **kwargs)
+        self.speed = speed
+
+    def _gen_can_msg_data(self) -> bytes:
+        # Convert speed to int32_t value (0.01dps/LSB)
+        speed_raw = int(self.speed * 100)
+
+        # Create data bytes - cmd_id followed by zeros, then speed value in bytes 4-7
+        data = bytearray(
+            [
+                self.cmd_id,
+                0,
+                0,
+                0,
+                speed_raw & 0xFF,
+                (speed_raw >> 8) & 0xFF,
+                (speed_raw >> 16) & 0xFF,
+                (speed_raw >> 24) & 0xFF,
+            ]
+        )
+        return bytes(data)
+
+
+class PositionControlCommand(MyActuatorCanMessage):
+    """Command to control the absolute position of the motor."""
+
+    cmd_id = 0xA4
+
+    # Position control value (int32_t type, 0.01degree/LSB)
+    position: float
+    # Max speed (uint16_t type, 1dps/LSB)
+    max_speed: int
+
+    def __init__(
+        self, node_id: int, position: float = 0.0, max_speed: int = 0, **kwargs: Any
+    ):
+        super().__init__(node_id, **kwargs)
+        self.position = position
+        self.max_speed = max_speed
+
+    def _gen_can_msg_data(self) -> bytes:
+        # Convert position to int32_t value (0.01degree/LSB)
+        position_raw = int(self.position * 100)
+
+        # Create data bytes
+        data = bytearray(
+            [
+                self.cmd_id,
+                0,
+                self.max_speed & 0xFF,  # Low byte of max_speed
+                (self.max_speed >> 8) & 0xFF,  # High byte of max_speed
+                position_raw & 0xFF,
+                (position_raw >> 8) & 0xFF,
+                (position_raw >> 16) & 0xFF,
+                (position_raw >> 24) & 0xFF,
+            ]
+        )
+        return bytes(data)
+
+
+class MotorShutdownCommand(MyActuatorCanMessage):
+    """Turns off the motor output and clears the motor running state."""
+
+    cmd_id = 0x80
+
+    def _gen_can_msg_data(self) -> bytes:
+        # Simply the command byte followed by zeros
+        return bytes([self.cmd_id, 0, 0, 0, 0, 0, 0, 0])
+
+
+class MotorStopCommand(MyActuatorCanMessage):
+    """Stops the motor but maintains closed-loop control mode."""
+
+    cmd_id = 0x81
+
+    def _gen_can_msg_data(self) -> bytes:
+        # Simply the command byte followed by zeros
+        return bytes([self.cmd_id, 0, 0, 0, 0, 0, 0, 0])
+
+
+class ReadMultiTurnAngleMessage(MyActuatorCanMessage):
+    """Reads the current multi-turn absolute angle value of the motor."""
+
+    cmd_id = 0x92
+
+    # Motor angle (int32_t type, unit 0.01°/LSB)
+    angle: float
+
+    def _parse_can_msg_data(self, msg: can.Message) -> None:
+        # Angle in DATA[4] to DATA[7], unit 0.01°/LSB
+        angle_raw = (
+            msg.data[4] | (msg.data[5] << 8) | (msg.data[6] << 16) | (msg.data[7] << 24)
+        )
+
+        # Convert to signed if needed (32-bit two's complement)
+        if angle_raw > 0x7FFFFFFF:
+            angle_raw -= 0x100000000
+
+        self.angle = angle_raw * 0.01  # Convert to degrees
+
+
+class SystemBrakeReleaseCommand(MyActuatorCanMessage):
+    """Releases the system brake, allowing the motor to be moved."""
+
+    cmd_id = 0x77
+
+    def _gen_can_msg_data(self) -> bytes:
+        # Simply the command byte followed by zeros
+        return bytes([self.cmd_id, 0, 0, 0, 0, 0, 0, 0])
+
+
+class SystemBrakeLockCommand(MyActuatorCanMessage):
+    """Locks the system brake, preventing the motor from moving."""
+
+    cmd_id = 0x78
+
+    def _gen_can_msg_data(self) -> bytes:
+        # Simply the command byte followed by zeros
+        return bytes([self.cmd_id, 0, 0, 0, 0, 0, 0, 0])
+
+
+class SystemResetCommand(MyActuatorCanMessage):
+    """Resets the system program."""
+
+    cmd_id = 0x76
+
+    def _gen_can_msg_data(self) -> bytes:
+        # Simply the command byte followed by zeros
+        return bytes([self.cmd_id, 0, 0, 0, 0, 0, 0, 0])
+
+
+########################################################################################
+# ODRIVE CYCLIC MESSAGES ###############################################################
 ########################################################################################
 
 
@@ -300,7 +647,7 @@ class VersionMessage(OdriveCanMessage):
 
 
 ########################################################################################
-# COMMAND MESSAGES #####################################################################
+# ODRIVE COMMAND MESSAGES ##############################################################
 ########################################################################################
 
 
