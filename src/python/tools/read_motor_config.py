@@ -7,13 +7,11 @@ from typing import List
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from drivers.can import connection, enums, messages
+from drivers import can
 from ipc import session
 
 
-async def _print_path(
-    bus: connection.CANSimple, node_ids: List[int], path: str
-) -> None:
+async def _print_path(bus: can.CANSimple, node_ids: List[int], path: str) -> None:
     endpoint_data = session.get_motor_endpoint_data()
 
     endpoint_id = endpoint_data["endpoints"][path]["id"]
@@ -22,7 +20,7 @@ async def _print_path(
         raise ValueError(f"Unknown endpoint type {endpoint_type=}")
 
     for node_id in node_ids:
-        msg = messages.ReadParameterCommand(node_id, endpoint_id=endpoint_id)
+        msg = can.ReadParameterCommand(node_id, endpoint_id=endpoint_id)
         await bus.send(msg)
         response = await bus.await_parameter_response(node_id, value_type=endpoint_type)
         print(f"{node_id=}: {path} = {response.value if response else None}")
@@ -46,7 +44,7 @@ async def main() -> None:
     args = parser.parse_args()
 
     print("opening CAN bus...")
-    bus = connection.CANSimple(enums.CANInterface.ODRIVE, enums.BusType.SOCKET_CAN)
+    bus = can.CANSimple(can.CANInterface.ODRIVE, can.BusType.SOCKET_CAN)
 
     try:
         await _print_path(bus, args.node_id, args.path)

@@ -3,7 +3,7 @@ from typing import Generator
 
 import pytest
 from config import robot_config
-from drivers.can import messages as can_messages
+from drivers import can as can_messages
 from typing_helpers import req
 
 from ipc import messages, pubsub, registry

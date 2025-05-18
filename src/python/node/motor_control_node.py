@@ -10,8 +10,8 @@ from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import log
+from drivers import can as can_messages
 from drivers.can import connection, enums
-from drivers.can import messages as can_messages
 from ipc import messages as ipc_messages
 from ipc import registry, session
 
