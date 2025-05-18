@@ -8,13 +8,13 @@ from odrive import enums as odrive_enums  # type: ignore[import-untyped]
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from drivers.can import connection, enums, messages
+from drivers import can
 
 
 async def _set_state(
-    bus: connection.CANSimple, node_id: int, axis_state: odrive_enums.AxisState
+    bus: can.CANSimple, node_id: int, axis_state: odrive_enums.AxisState
 ) -> None:
-    msg = messages.SetAxisStateMessage(node_id=node_id, axis_state=axis_state)
+    msg = can.SetAxisStateMessage(node_id=node_id, axis_state=axis_state)
     await bus.send(msg)
 
 
@@ -41,7 +41,7 @@ async def main() -> None:
         raise ValueError("Unknown state.")
 
     print("opening CAN bus...")
-    bus = connection.CANSimple(enums.CANInterface.ODRIVE, enums.BusType.SOCKET_CAN)
+    bus = can.CANSimple(can.CANInterface.ODRIVE, can.BusType.SOCKET_CAN)
 
     try:
         await _set_state(bus, args.node_id, axis_state)

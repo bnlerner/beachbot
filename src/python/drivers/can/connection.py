@@ -2,8 +2,10 @@ import asyncio
 from typing import Callable, Generic, List, Optional, Tuple, Type, TypeVar
 
 import can
+import log
 
-from drivers.can import enums, messages
+# Import directly from specific modules instead of the package
+from drivers.can import enums, messages, odrive_messages
 
 CanMessageT = TypeVar("CanMessageT", bound="messages.CanMessage")
 _BAUDRATE = 1_000_000
@@ -85,7 +87,11 @@ class CANSimple:
     async def send(self, msg: messages.CanMessage) -> None:
         """Sends a CAN message."""
         can_msg = msg.as_can_message()
-        self._can_bus.send(can_msg)
+        try:
+            self._can_bus.send(can_msg)
+        except can.CanError as e:
+            log.error(f"Error sending message {can_msg}")
+            raise e
         await asyncio.sleep(0)
 
     async def listen(self) -> None:
@@ -98,15 +104,18 @@ class CANSimple:
         await asyncio.gather(*self._listen_tasks)
 
     async def await_parameter_response(
-        self, node_id: int, value_type: messages.VALUE_TYPES, timeout: float = 1.0
-    ) -> Optional[messages.ParameterResponse]:
+        self,
+        node_id: int,
+        value_type: odrive_messages.VALUE_TYPES,
+        timeout: float = 1.0,
+    ) -> Optional[odrive_messages.ParameterResponse]:
         """Waits until a specific message type is received on the can bus."""
         self._flush_reader()
         self._add_listener_to_notifier(self._reader)
         # Set the class instance var to the value type. Not the cleanest but works
         # in this message architecture.
-        messages.ParameterResponse.value_type = value_type
-        arb_id = messages.ParameterResponse(node_id).arbitration_id
+        odrive_messages.ParameterResponse.value_type = value_type
+        arb_id = odrive_messages.ParameterResponse(node_id).arbitration_id
 
         return await asyncio.wait_for(
             self._poll_for_parameter_response(arb_id.value), timeout
@@ -114,14 +123,14 @@ class CANSimple:
 
     async def _poll_for_parameter_response(
         self, arbitration_id: int
-    ) -> Optional[messages.ParameterResponse]:
+    ) -> Optional[odrive_messages.ParameterResponse]:
         """Continuously polls the can bus for a specific arbitration id until a message
         with the same arbitration id is found. In this case, the Odrive sends back
         a parameter response to a get or set parameter notification.
         """
         async for can_msg in self._reader:
             if can_msg.arbitration_id == arbitration_id:
-                return messages.ParameterResponse.from_can_message(can_msg)
+                return odrive_messages.ParameterResponse.from_can_message(can_msg)
 
         return None
 

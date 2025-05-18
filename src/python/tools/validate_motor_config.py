@@ -9,12 +9,12 @@ import numpy as np
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import robot_config
-from drivers.can import connection, enums, messages
+from drivers import can
 from ipc import session
 
 
 async def _validate_motor_config(
-    bus: connection.CANSimple, motor: robot_config.Motor, should_fix_issues: bool
+    bus: can.CANSimple, motor: robot_config.Motor, should_fix_issues: bool
 ) -> None:
     endpoint_data = session.get_motor_endpoint_data()
 
@@ -27,7 +27,7 @@ async def _validate_motor_config(
         if endpoint_type in ("function", "endpoint_ref"):
             raise ValueError(f"Unknown endpoint type {endpoint_type=}")
 
-        msg = messages.ReadParameterCommand(motor.node_id, endpoint_id=endpoint_id)
+        msg = can.ReadParameterCommand(motor.node_id, endpoint_id=endpoint_id)
         await bus.send(msg)
         response = await bus.await_parameter_response(
             motor.node_id, value_type=endpoint_type
@@ -37,7 +37,7 @@ async def _validate_motor_config(
                 f"For motor: {motor.node_id}: {path} = {response.value if response else None}, expected: {expected_value}"
             )
             if should_fix_issues:
-                write_msg = messages.WriteParameterCommand(
+                write_msg = can.WriteParameterCommand(
                     motor.node_id,
                     endpoint_id=endpoint_id,
                     value_type=endpoint_type,
@@ -50,7 +50,7 @@ async def _validate_motor_config(
                 did_write_config = True
 
     if did_write_config:
-        reboot_msg = messages.Reboot(motor.node_id, action=1)
+        reboot_msg = can.Reboot(motor.node_id, action=1)
         await bus.send(reboot_msg)
         print(f"Rebooting motor: {motor.node_id}")
 
@@ -67,7 +67,7 @@ async def main() -> None:
     args = parser.parse_args()
 
     print("opening CAN bus...")
-    bus = connection.CANSimple(enums.CANInterface.ODRIVE, enums.BusType.SOCKET_CAN)
+    bus = can.CANSimple(can.CANInterface.ODRIVE, can.BusType.SOCKET_CAN)
 
     try:
         motors = session.get_robot_motors()
