@@ -49,6 +49,8 @@ SystemResetCommand = myactuator_v3_messages.SystemResetCommand
 CANIDCommand = myactuator_v3_messages.CANIDCommand
 VersionAcquisitionCommand = myactuator_v3_messages.VersionAcquisitionCommand
 FunctionControlCommand = myactuator_v3_messages.FunctionControlCommand
+SpeedControlCommand = myactuator_v3_messages.SpeedControlCommand
+TorqueControlCommand = myactuator_v3_messages.TorqueControlCommand
 
 # X4-24 controller message classes
 X424CanMessageSetAndQuery = x4_24_messages.X424CanMessageSetAndQuery
