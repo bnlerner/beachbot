@@ -119,45 +119,45 @@ async def test_x4_motor(can_interface: str, node_id: int) -> None:
 
         # print("Testing speed control (-100 -> 0 -> 100 -> 0)...")
 
-        # # Rotate at -300 RPM
-        # await can_bus.send(
-        #     x4_24_messages.X424ServoSpeedControlMessage(
-        #         node_id=node_id,
-        #         speed=-100,
-        #         current_limit=5,
-        #     )
-        # )
-        # await asyncio.sleep(2.0)
+        # Rotate at -300 RPM
+        await can_bus.send(
+            can.X424ServoSpeedControlMessage(
+                node_id=node_id,
+                speed=-100,
+                current_limit=5,
+            )
+        )
+        await asyncio.sleep(2.0)
 
-        # # Stop the motor
-        # await can_bus.send(
-        #     x4_24_messages.X424ServoSpeedControlMessage(
-        #         node_id=node_id,
-        #         speed=0,
-        #         current_limit=5,
-        #     )
-        # )
-        # await asyncio.sleep(0.5)
+        # Stop the motor
+        await can_bus.send(
+            can.X424ServoSpeedControlMessage(
+                node_id=node_id,
+                speed=0,
+                current_limit=5,
+            )
+        )
+        await asyncio.sleep(0.5)
 
-        # # Rotate at 300 RPM
-        # await can_bus.send(
-        #     x4_24_messages.X424ServoSpeedControlMessage(
-        #         node_id=node_id,
-        #         speed=100,
-        #         current_limit=5,
-        #     )
-        # )
-        # await asyncio.sleep(2.0)
+        # Rotate at 300 RPM
+        await can_bus.send(
+            can.X424ServoSpeedControlMessage(
+                node_id=node_id,
+                speed=100,
+                current_limit=5,
+            )
+        )
+        await asyncio.sleep(2.0)
 
-        # # Stop the motor
-        # await can_bus.send(
-        #     x4_24_messages.X424ServoSpeedControlMessage(
-        #         node_id=node_id,
-        #         speed=0,
-        #         current_limit=5,
-        #     )
-        # )
-        # await asyncio.sleep(0.5)
+        # Stop the motor
+        await can_bus.send(
+            can.X424ServoSpeedControlMessage(
+                node_id=node_id,
+                speed=0,
+                current_limit=5,
+            )
+        )
+        await asyncio.sleep(0.5)
 
     finally:
         can_bus.shutdown()
@@ -206,7 +206,7 @@ async def test_controller_v3_motor(can_interface: str, node_id: int) -> None:
         await can_bus.send(
             can.PositionControlCommand(node_id=node_id, position=90.0, max_speed=500)
         )
-        await asyncio.sleep(2.0)
+        await asyncio.sleep(3.5)
 
         # Read current angle
         await can_bus.send(can.ReadMultiTurnAngleMessage(node_id=node_id))
@@ -216,8 +216,32 @@ async def test_controller_v3_motor(can_interface: str, node_id: int) -> None:
         await can_bus.send(
             can.PositionControlCommand(node_id=node_id, position=0.0, max_speed=500)
         )
-        await asyncio.sleep(2.0)
+        await asyncio.sleep(3.5)
 
+        # Rotate at positive speed
+        await can_bus.send(
+            can.SpeedControlCommand(node_id=node_id, speed=100.0)
+        )
+        await asyncio.sleep(3.5)
+
+        # Return to 0 velocity
+        await can_bus.send(
+            can.SpeedControlCommand(node_id=node_id, speed=0.0)
+        )
+        await asyncio.sleep(0.5)
+
+        # Rotate at negative speed
+        await can_bus.send(
+            can.SpeedControlCommand(node_id=node_id, speed=-100.0)
+        )
+        await asyncio.sleep(3.5)
+
+        # Return to 0 velocity
+        await can_bus.send(
+            can.SpeedControlCommand(node_id=node_id, speed=0.0)
+        )
+        await asyncio.sleep(0.5)
+        # Stop the motor
         await can_bus.send(can.MotorShutdownCommand(node_id=node_id))
         await asyncio.sleep(0.5)
 
