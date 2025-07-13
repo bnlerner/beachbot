@@ -11,6 +11,7 @@ VEHICLE = frames.ReferenceFrame.VEHICLE
 HAND = frames.ReferenceFrame.HAND
 FOREARM = frames.ReferenceFrame.FOREARM
 ARM = frames.ReferenceFrame.ARM
+SHOULDER = frames.ReferenceFrame.SHOULDER
 BASE = frames.ReferenceFrame.BASE
 
 BaseAngleType = cartesian_objects.BaseAngleType
@@ -36,7 +37,8 @@ linear_ramp = math_helpers.linear_ramp
 clip = math_helpers.clip
 mean = math_helpers.mean
 is_close = math_helpers.is_close
-
+create_rpy_transform = math_helpers.create_rpy_transform
+create_rotary_joint_transform = math_helpers.create_rotary_joint_transform
 
 # Some common conversions.
 VEH_TO_BODY_ROT = Rotation(UTM, 180, 0, 0)

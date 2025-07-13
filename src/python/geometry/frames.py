@@ -57,6 +57,7 @@ class ReferenceFrame(enum.Enum):
     FOREARM = "FOREARM"
     ARM = "ARM"
     BASE = "BASE"
+    SHOULDER = "SHOULDER"
 
     def __repr__(self) -> str:
         return str(self)
