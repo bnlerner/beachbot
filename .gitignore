@@ -10,3 +10,4 @@
 .docker
 .env
 var/*
+build/
