@@ -1,0 +1,16 @@
+CompileFlags:
+  Add:
+    - -std=c++23
+    - -stdlib=libc++
+    - -I/usr/local/include
+    - -I/opt/homebrew/include
+  Remove:
+    - -W*
+
+Diagnostics:
+  ClangTidy:
+    Add: [performance-*, modernize-*, readability-*]
+    Remove: [modernize-use-trailing-return-type]
+
+Index:
+  Background: Build
