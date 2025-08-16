@@ -8,23 +8,8 @@ import numpy as np
 import pydantic
 from scipy.ndimage import distance_transform_edt  # type:ignore[import-untyped]
 
-# Optional dependencies: OpenCV and ZED SDK
-try:  # type: ignore[import-not-found]
-    import cv2  # type: ignore[import-untyped]
-
-    _HAS_CV2 = True
-except Exception:  # pragma: no cover - environment without OpenCV
-    cv2 = None  # type: ignore[assignment]
-    _HAS_CV2 = False
-
-try:  # type: ignore[import-not-found]
-    from pyzed import sl  # type: ignore[import-untyped]
-
-    _HAS_ZED = True
-except Exception:  # pragma: no cover - environment without ZED SDK
-    sl = None  # type: ignore[assignment]
-    _HAS_ZED = False
-
+import cv2
+from pyzed import sl # type:ignore[import-untyped]
 _IMAGE_SCALE_PCT = 0.25
 _OBSTACLE_DISTANCE_THRESHOLD = 1.0
 _GREEN = (0, 255, 0)
@@ -182,8 +167,6 @@ class Image:
     def serialized(self) -> Optional[bytes]:
         """A serialized version of this Image as a JPEG."""
         # NOTE: cv2 encoding is very slow so dont call too often if you can help it.
-        if not _HAS_CV2:
-            return None
         _, buffer = cv2.imencode(
             ".jpg", self._array, [int(cv2.IMWRITE_JPEG_QUALITY), 50]
         )
@@ -191,8 +174,6 @@ class Image:
 
     def add_bounding_boxes(self, tracked_objects: List[TrackedObjects]) -> None:
         """Adds 2D bounding boxes to the image based on the tracked objects."""
-        if not _HAS_CV2:
-            return
         for obj in tracked_objects:
             pt0, pt1 = obj.image_bounding_box
 
@@ -213,8 +194,6 @@ class Image:
 
     def reduce(self) -> None:
         """Modifies this image, reducing its size to save space."""
-        if not _HAS_CV2:
-            return
         width = int(self._array.shape[1] * _IMAGE_SCALE_PCT)
         height = int(self._array.shape[0] * _IMAGE_SCALE_PCT)
         self._array = cv2.resize(
