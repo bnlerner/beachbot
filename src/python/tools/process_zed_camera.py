@@ -18,9 +18,9 @@ async def process_camera(camera: async_camera.AsyncCamera, executor: Executor) -
         total_time = time.perf_counter() - start
         print(f"{camera._frame} {total_time=}, {1/total_time} hz")
         await asyncio.sleep(0.01)
-        depth_map = camera.depth_map()
-        tracked_objects = camera.tracked_objects()
-        image = camera.image()
+        # depth_map = camera.depth_map()
+        # tracked_objects = camera.tracked_objects()
+        # image = camera.image()
 
 
 async def create_camera(

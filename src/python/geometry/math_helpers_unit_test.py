@@ -83,3 +83,34 @@ def test_rotation_matrix_to_quaternion(roll: float, pitch: float, yaw: float) ->
     sst_rot = sst.Rotation.from_euler("xyz", (roll, pitch, yaw), degrees=True)
     sst_x, sst_y, sst_z, sst_w = sst_rot.as_quat()
     assert np.allclose([w, x, y, z], [sst_w, sst_x, sst_y, sst_z])
+
+
+def test_create_rpy_transform() -> None:
+    x = 0.0
+    y = 0.0
+    z = 0.0
+    roll = 0.0
+    pitch = 0.0
+    yaw = 0.0
+
+    transform = math_helpers.create_rpy_transform(x, y, z, roll, pitch, yaw)
+
+    assert np.allclose(transform, np.eye(4))
+
+
+def test_create_rotary_joint_transform() -> None:
+    x = 0.0
+    y = 0.0
+    z = 0.0
+    roll = 0.0
+    pitch = 0.0
+    yaw = 0.0
+    axis_x = 0.0
+    axis_y = 0.0
+    axis_z = 1.0
+
+    transform = math_helpers.create_rotary_joint_transform(
+        x, y, z, roll, pitch, yaw, axis_x, axis_y, axis_z, 0.0
+    )
+
+    assert np.allclose(transform, np.eye(4))

@@ -122,40 +122,28 @@ async def test_x4_motor(can_interface: str, node_id: int) -> None:
         # Rotate at -300 RPM
         await can_bus.send(
             can.X424ServoSpeedControlMessage(
-                node_id=node_id,
-                speed=-100,
-                current_limit=5,
+                node_id=node_id, speed=-100, current_limit=5
             )
         )
         await asyncio.sleep(2.0)
 
         # Stop the motor
         await can_bus.send(
-            can.X424ServoSpeedControlMessage(
-                node_id=node_id,
-                speed=0,
-                current_limit=5,
-            )
+            can.X424ServoSpeedControlMessage(node_id=node_id, speed=0, current_limit=5)
         )
         await asyncio.sleep(0.5)
 
         # Rotate at 300 RPM
         await can_bus.send(
             can.X424ServoSpeedControlMessage(
-                node_id=node_id,
-                speed=100,
-                current_limit=5,
+                node_id=node_id, speed=100, current_limit=5
             )
         )
         await asyncio.sleep(2.0)
 
         # Stop the motor
         await can_bus.send(
-            can.X424ServoSpeedControlMessage(
-                node_id=node_id,
-                speed=0,
-                current_limit=5,
-            )
+            can.X424ServoSpeedControlMessage(node_id=node_id, speed=0, current_limit=5)
         )
         await asyncio.sleep(0.5)
 
@@ -219,27 +207,19 @@ async def test_controller_v3_motor(can_interface: str, node_id: int) -> None:
         await asyncio.sleep(3.5)
 
         # Rotate at positive speed
-        await can_bus.send(
-            can.SpeedControlCommand(node_id=node_id, speed=100.0)
-        )
+        await can_bus.send(can.SpeedControlCommand(node_id=node_id, speed=100.0))
         await asyncio.sleep(3.5)
 
         # Return to 0 velocity
-        await can_bus.send(
-            can.SpeedControlCommand(node_id=node_id, speed=0.0)
-        )
+        await can_bus.send(can.SpeedControlCommand(node_id=node_id, speed=0.0))
         await asyncio.sleep(0.5)
 
         # Rotate at negative speed
-        await can_bus.send(
-            can.SpeedControlCommand(node_id=node_id, speed=-100.0)
-        )
+        await can_bus.send(can.SpeedControlCommand(node_id=node_id, speed=-100.0))
         await asyncio.sleep(3.5)
 
         # Return to 0 velocity
-        await can_bus.send(
-            can.SpeedControlCommand(node_id=node_id, speed=0.0)
-        )
+        await can_bus.send(can.SpeedControlCommand(node_id=node_id, speed=0.0))
         await asyncio.sleep(0.5)
         # Stop the motor
         await can_bus.send(can.MotorShutdownCommand(node_id=node_id))
