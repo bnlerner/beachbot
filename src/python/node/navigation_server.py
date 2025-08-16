@@ -27,7 +27,7 @@ class NavigationServer(base_node.BaseNode):
     def __init__(self) -> None:
         super().__init__(registry.NodeIDs.NAVIGATION)
 
-        self._obstacle_map = obstacle_map.ObstacleMap()
+        self._obstacle_map = obstacle_map.ObstacleMap([])
         self._nav_planner = nav_path_planner.NavPathPlanner(self._obstacle_map)
         self._request: Optional[messages.NavigateRequest] = None
         self._cur_pose: Optional[geometry.Pose] = None

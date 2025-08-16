@@ -36,6 +36,7 @@ def subscriber() -> Generator[pubsub.Subscriber, None, None]:
 
 def _process_msg(msg: messages.MotorCommandMessage) -> None:
     latency = time.perf_counter() - req(msg.creation)
+    # Use ODrive CAN message for tests by default
     _ = can_messages.SetVelocityMessage(
         msg.motor.node_id, velocity=msg.velocity, torque=msg.feedforward_torque
     )
