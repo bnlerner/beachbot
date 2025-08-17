@@ -9,5 +9,6 @@
 .cache
 .docker
 .env
+.cursor
 var/*
 build/
