@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import os
 import pathlib
 import pickle
 import time
@@ -12,7 +13,7 @@ from typing_helpers import req
 
 from ipc import core
 
-_LOCK_DIR = "/home/brianlerner/beachbot/var/locks/"
+_LOCK_DIR = "/tmp/beachbot_locks/"
 _LOCK_SUFFIX = "-lock"
 
 # Minumum interval in seconds between when checking for a new message.
@@ -205,6 +206,11 @@ def _gen_lock(shm_name: str) -> filelock._unix.UnixFileLock:
     """Generates a thread agnostic filelock for the given shm name used to avoid race
     conditions.
     """
+    # Ensure lock directory exists
+    try:
+        os.makedirs(_LOCK_DIR, exist_ok=True)
+    except Exception:
+        pass
     lock_path = _LOCK_DIR + shm_name + _LOCK_SUFFIX
     return filelock._unix.UnixFileLock(lock_path, thread_local=False)
 
