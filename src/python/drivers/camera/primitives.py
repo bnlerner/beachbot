@@ -3,13 +3,13 @@ from __future__ import annotations
 import enum
 from typing import List, Optional, Tuple
 
+import cv2
 import geometry
 import numpy as np
 import pydantic
+from pyzed import sl  # type:ignore[import-untyped]
 from scipy.ndimage import distance_transform_edt  # type:ignore[import-untyped]
 
-import cv2
-from pyzed import sl # type:ignore[import-untyped]
 _IMAGE_SCALE_PCT = 0.25
 _OBSTACLE_DISTANCE_THRESHOLD = 1.0
 _GREEN = (0, 255, 0)
