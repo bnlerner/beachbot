@@ -1,0 +1,95 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Beachbot Codebase Standards
+
+## Project Structure
+- Configuration files and classes should be in the `config` module
+- Testing follows pytest conventions with files named `*_unit_test.py`
+- Examples should be placed in the `src/python/examples` directory
+- URDF files should be stored in `env/urdf/`
+
+## Robotics-Specific Patterns
+- Use frames and coordinate systems consistently
+- Position and orientation transformations are a core operation
+- Implement proper transformation matrices for converting between frames
+- Separate representation from computation
+- Use consistent units throughout (SI units preferred)
+- Robot configurations should be well-documented
+- Joint types should be clearly defined (ROTARY, PRISMATIC, FIXED)
+- Make heavy use of numpy for mathematical operations
+- Use numpy.dot for matrix multiplication rather than manual multiplication
+- Understand sign conventions for transformations, especially for rotations and translations
+- Support special-case handling for frequently used transformations
+
+## Frame Tree Implementation
+- Frame trees should be composed of nodes (frames) and connections (joints)
+- Robot kinematics should be represented using a tree structure with clear parent-child relationships
+- Transform operations should account for the complete chain from source to target frame
+- URDF parsing should handle all standard joint types and their properties
+- Position and orientation transformations should preserve frame information
+- Frame tree should be convertible to a kinematic chain for forward/inverse kinematics
+- Consider frame relationships when transforming between coordinate systems
+- Factory methods should be used to create standard robot configurations
+- Frame lineage (path from a given frame to root) is essential for transformations
+- Fixtures should be provided for common robot configurations (3DOF, 4DOF, 5DOF, etc.)
+- All transformation operations must have corresponding unit tests
+- Special handling may be needed for critical transform paths in the frame tree
+- When transforming between frames, find the common ancestor to determine the transformation path
+- Create utility methods for repetitive operations like getting joint transforms or frame lineage
+
+## Code Quality Standards
+- Ensure coordinate transformations maintain proper signs (positive/negative values)
+- Pay special attention to rotation direction conventions in 3D space
+- Position transformations must account for both translation and rotation components
+- Orientation transformations must correctly handle reference frame changes
+- Matrix operations should be validated for numerical stability
+- Edge cases like same-frame transformations should return identity matrices
+- Inverse transformations should be mathematically correct
+- Test transformation chains with multiple frames to catch composition errors
+- Verify transformations with known reference values for standard configurations
+- Ensure joint limits are properly enforced during transformations
+- Validate matrix determinants to confirm proper rotation matrices (orthonormal)
+- Frame trees should handle cycles and invalid structures gracefully
+- Test exact matching of expected values, not just approximations where precision matters
+- Transformation matrix calculations should consider the correct order of operations
+- When traversing up the tree, apply joint transforms directly; when traversing down, apply inverse transforms
+- For numba-accelerated functions, ensure type signatures match the actual usage
+- All variables in a class should be private unless used by another calling class.
+
+## URDF Format Standards
+- URDF files should follow the ROS URDF specification
+- Each URDF file should define a complete robot with links and joints
+- Links represent rigid bodies and should include visual and collision properties when relevant
+- Joints connect links and must specify parent and child relationships
+- Joint types should be one of: revolute, prismatic, fixed, continuous, floating, or planar
+- Origin elements should define both xyz (translation) and rpy (rotation) attributes
+- For rotary joints, axis of rotation must be specified and normalized
+- Joint limits should include lower, upper, effort, and velocity attributes when applicable
+- The robot should have a clear root link with no parent
+- URDF files should be validated for structural integrity before use
+- Visual representations should be simplified for testing and simulation
+- Consider using XACRO for more complex, parameterized robot descriptions
+- URDF files should be placed in the `env/urdf/` directory with descriptive filenames
+- Reference URDF files by path relative to workspace root, not absolute paths
+
+## Beachbot-Specific Conventions
+- Configuration should be flexible, with robot parameters loaded from configuration files
+- Frame tree implementations should support integration with existing kinematics systems
+- Follow naming conventions specific to the Beachbot project (base_link, etc.)
+- Prefer factory methods for creating standard robot configurations
+- Standard robot arms (3DOF, 4DOF, 5DOF, 6DOF) should be available through fixtures
+- Maintain separation between geometry and kinematics functionality
+- Cartesian objects (Position, Orientation, Pose) should carry frame information
+- Support for standard transformation operations between any frames in the tree
+- Robot base frame should always be "base_link" by default
+- All transformations must account for joint types and their current values
+- Python files should be organized into logical modules (geometry, kinematics, config)
+- Use consistent error handling patterns for frame and transformation errors
+- Position and orientation transformations should be properly signed
+- Follow established conventions for direction of joint rotation
+- When implementing joint transforms, apply origin transform first, then joint motion
+- Use specialized matrix creation functions from math_helpers module for consistent calculations
