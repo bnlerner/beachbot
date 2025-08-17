@@ -184,7 +184,7 @@ def _get_shm_id(shm: SharedMemory) -> Optional[int]:
     try:
         return _shm_path(shm).stat().st_ino
     except FileNotFoundError:
-        return  None
+        return None
 
 
 @functools.lru_cache
