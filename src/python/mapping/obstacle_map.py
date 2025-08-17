@@ -6,7 +6,7 @@ from drivers.camera import primitives
 
 
 class ObstacleMap:
-    def __init__(self, obstacles: List = []):
+    def __init__(self, obstacles: List):
         self._obstacles = obstacles
 
     def update(self, tracked_objects: List[primitives.TrackedObjects]) -> None:

@@ -430,3 +430,65 @@ def create_rpy_transform(
     transform[2, 3] = z
 
     return transform
+
+
+@nb.njit(
+    _F64_MATRIX(
+        nb.float64,
+        nb.float64,
+        nb.float64,
+        nb.float64,
+        nb.float64,
+        nb.float64,
+        nb.float64,
+        nb.float64,
+        nb.float64,
+        nb.float64,
+    )
+)
+def create_rotary_joint_transform(
+    x: float,
+    y: float,
+    z: float,
+    roll: float,
+    pitch: float,
+    yaw: float,
+    axis_x: float,
+    axis_y: float,
+    axis_z: float,
+    joint_value: float,
+) -> np.ndarray:
+    origin_transform = create_rpy_transform(x, y, z, roll, pitch, yaw)
+
+    axis_norm = math.sqrt(axis_x**2 + axis_y**2 + axis_z**2)
+    if axis_norm < 1e-10:  # Avoid division by zero
+        return origin_transform
+
+    axis_x /= axis_norm
+    axis_y /= axis_norm
+    axis_z /= axis_norm
+
+    # Fill in rotation matrix
+    # Create transformation matrix for joint movement
+    joint_transform = np.eye(4)
+    # Create rotation matrix around specified axis using Rodrigues' formula
+    c = math.cos(joint_value)
+    s = math.sin(joint_value)
+    t = 1.0 - c
+
+    joint_transform[0, 0] = t * axis_x * axis_x + c
+    joint_transform[0, 1] = t * axis_x * axis_y - s * axis_z
+    joint_transform[0, 2] = t * axis_x * axis_z + s * axis_y
+
+    joint_transform[1, 0] = t * axis_x * axis_y + s * axis_z
+    joint_transform[1, 1] = t * axis_y * axis_y + c
+    joint_transform[1, 2] = t * axis_y * axis_z - s * axis_x
+
+    joint_transform[2, 0] = t * axis_x * axis_z - s * axis_y
+    joint_transform[2, 1] = t * axis_y * axis_z + s * axis_x
+    joint_transform[2, 2] = t * axis_z * axis_z + c
+
+    # Combine transformations: origin transform * joint transform
+    # For a joint, we first apply the origin transformation (fixing the joint in space),
+    # then apply the joint movement transform
+    return np.dot(origin_transform, joint_transform)

@@ -112,8 +112,11 @@ class BaseVectorType:
         self.y = float(self.y)
         self.z = float(self.z)
 
-    def as_array(self) -> np.ndarray:
-        return np.array([self.x, self.y, self.z])
+    def as_array(self, homogeneous: bool = False) -> np.ndarray:
+        if homogeneous:
+            return np.array([self.x, self.y, self.z, 1.0])
+        else:
+            return np.array([self.x, self.y, self.z])
 
     def as_direction(self) -> Direction:
         return Direction(self.frame, self.x, self.y, self.z)
@@ -468,6 +471,11 @@ class Pose:
         """Changes this object's frame."""
         self.position.frame = frame
         self.orientation.frame = frame
+
+    def as_transform_matrix(self) -> np.ndarray:
+        return math_helpers.create_rpy_transform(
+            *self.position.data, *self.orientation.data
+        )
 
     @classmethod
     def zero(cls, frame: frames.ReferenceFrame) -> Pose:
