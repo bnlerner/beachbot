@@ -1,7 +1,6 @@
 */**/__pycache__
 */**/*.pyc
 */**/.DS_Store
-**/.vscode
 *.egg-info/
 .idea
 .mypy_cache/
@@ -9,6 +8,5 @@
 .cache
 .docker
 .env
-.cursor
 var/*
 build/
