@@ -20,9 +20,7 @@ class UbloxBaseMessage(pydantic.BaseModel, abc.ABC):
     msg_name: ClassVar[str]
     creation: float = pydantic.Field(default_factory=time.perf_counter)
     lifetime: float = 0.5
-
-    class Config:
-        validate_assignment = True
+    model_config = pydantic.ConfigDict(validate_assignment=True)
 
     @classmethod
     @abc.abstractmethod
