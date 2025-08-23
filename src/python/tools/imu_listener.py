@@ -3,10 +3,10 @@ import os
 import sys
 import time
 
-import adafruit_bno08x  # type:ignore[import-untyped]
-import board  # type:ignore[import-untyped]
-import busio  # type:ignore[import-untyped]
-from adafruit_bno08x.i2c import BNO08X_I2C  # type:ignore[import-untyped]
+import adafruit_bno08x  # type:ignore [import-untyped]
+import board  # type:ignore [import-untyped]
+import busio  # type:ignore [import-untyped]
+from adafruit_bno08x.i2c import BNO08X_I2C  # type:ignore [import-untyped]
 
 # Get the path to the root of the project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
