@@ -184,9 +184,7 @@ def _get_shm_id(shm: SharedMemory) -> Optional[int]:
     try:
         return _shm_path(shm).stat().st_ino
     except FileNotFoundError:
-        # Fallback for platforms without /dev/shm (e.g., macOS). Use a stable
-        # identifier derived from the shm name for this process.
-        return abs(hash(shm.name))
+        return None
 
 
 @functools.lru_cache
