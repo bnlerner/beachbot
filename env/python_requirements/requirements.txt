@@ -6,6 +6,7 @@ types-pynput==1.7.7.20240813
 ruff==0.1.8
 sparkfun-ublox-gps==1.1.5
 pyserial==3.5
+# Version of spidev is not available for macos
 spidev==3.6; sys_platform == "linux"
 # originally had 2.0.2 but zed needs a downgrade
 numpy==1.26.4
@@ -20,6 +21,6 @@ pytest-asyncio==0.24.0
 PyGeodesy==24.11.11
 scipy==1.13.1
 PyOpenGL==3.1.7
-adafruit-circuitpython-bno08x==1.2.7; sys_platform == "linux"
-Jetson.GPIO==2.1.6; sys_platform == "linux"
+adafruit-circuitpython-bno08x==1.2.7
+Jetson.GPIO==2.1.6
 opencv-python==4.10.0.84
