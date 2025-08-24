@@ -1,5 +1,4 @@
-"""
-Pyzed patch module - provides cross-platform compatibility for ZED Camera SDK.
+"""Pyzed patch module - provides cross-platform compatibility for ZED Camera SDK.
 On Linux: imports real pyzed library
 On other platforms: provides mock implementations for development/testing
 """
@@ -47,7 +46,6 @@ if sys.platform == "linux":
 
 else:
     # Mock implementations for development on non-Linux platforms
-
     class _MockEnum:
         """Base class for mock enums"""
 
