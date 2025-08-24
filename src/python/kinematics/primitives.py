@@ -1,5 +1,5 @@
+import dataclasses
 import enum
-from dataclasses import dataclass
 from typing import Optional
 
 import geometry
@@ -15,7 +15,7 @@ class JointType(enum.Enum):
     ROTARY = 1
 
 
-@dataclass
+@dataclasses.dataclass
 class LinkParameters:
     """Parameters that define a link in a kinematic chain using Denavit-Hartenberg
     parameters.
@@ -123,7 +123,7 @@ class Link:
         return transform
 
 
-@dataclass
+@dataclasses.dataclass
 class KinematicState:
     """
     Represents the kinematic state of a link in the chain.
@@ -143,7 +143,7 @@ class KinematicState:
     angular_acceleration: Optional[geometry.AngularAcceleration] = None
 
 
-@dataclass
+@dataclasses.dataclass
 class MultiEndEffectorConfig:
     """
     Configuration for multiple end effectors on a kinematic chain.

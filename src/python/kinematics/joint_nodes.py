@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import dataclasses
 from typing import List, Optional, Tuple
 
 import geometry
@@ -9,7 +9,7 @@ import numpy as np
 from kinematics import primitives
 
 
-@dataclass
+@dataclasses.dataclass
 class BaseFrameNode:
     """Base class for frame nodes representing different joint types.
 
@@ -23,14 +23,18 @@ class BaseFrameNode:
     orientation: geometry.Orientation
     joint_type: primitives.JointType
 
-    rotary_axis: Optional[geometry.Direction] = field(default=None)
-    velocity: Optional[geometry.Velocity] = field(default=None)
-    acceleration: Optional[geometry.Acceleration] = field(default=None)
-    angular_velocity: Optional[geometry.AngularVelocity] = field(default=None)
-    angular_acceleration: Optional[geometry.AngularAcceleration] = field(default=None)
+    rotary_axis: Optional[geometry.Direction] = dataclasses.field(default=None)
+    velocity: Optional[geometry.Velocity] = dataclasses.field(default=None)
+    acceleration: Optional[geometry.Acceleration] = dataclasses.field(default=None)
+    angular_velocity: Optional[geometry.AngularVelocity] = dataclasses.field(
+        default=None
+    )
+    angular_acceleration: Optional[geometry.AngularAcceleration] = dataclasses.field(
+        default=None
+    )
 
-    parent: Optional[BaseFrameNode] = field(default=None)
-    children: List[BaseFrameNode] = field(default_factory=list, init=False)
+    parent: Optional[BaseFrameNode] = dataclasses.field(default=None)
+    children: List[BaseFrameNode] = dataclasses.field(default_factory=list, init=False)
 
     @property
     def pose(self) -> geometry.Pose:
@@ -55,13 +59,13 @@ class BaseFrameNode:
             raise ValueError(f"Frame {other} doesn't match node {self.frame=}")
 
 
-@dataclass
+@dataclasses.dataclass
 class FixedFrameNode(BaseFrameNode):
     """Frame node for fixed joints. Fixed joints have a rigid connection to their parent
     frame and do not allow any relative motion.
     """
 
-    joint_type: primitives.JointType = field(
+    joint_type: primitives.JointType = dataclasses.field(
         default=primitives.JointType.FIXED, init=False
     )
 
@@ -70,7 +74,7 @@ class FixedFrameNode(BaseFrameNode):
         return self.pose.as_transform_matrix()
 
 
-@dataclass
+@dataclasses.dataclass
 class RotaryFrameNode(BaseFrameNode):
     """Frame node for rotary joints. Rotary joints allow rotation around a specific
     axis.
@@ -83,7 +87,7 @@ class RotaryFrameNode(BaseFrameNode):
     limits: Tuple[float, float] = (-float("inf"), float("inf"))
     angle: float = 0.0
 
-    joint_type: primitives.JointType = field(
+    joint_type: primitives.JointType = dataclasses.field(
         default=primitives.JointType.ROTARY, init=False
     )
 
