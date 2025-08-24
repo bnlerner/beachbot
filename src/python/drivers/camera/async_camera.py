@@ -4,7 +4,7 @@ from typing import List, Literal, Optional
 
 import geometry
 import log
-from pyzed import sl  # type:ignore[import-untyped]
+from system_info import pyzed_patch
 
 from drivers import camera
 from drivers.camera import primitives
@@ -21,15 +21,17 @@ class AsyncCamera:
     def __init__(self, frame: geometry.ReferenceFrame):
         self._frame = frame
         self._serial_number = self._get_serial_number(frame)
-        self._runtime_parameters = sl.RuntimeParameters(confidence_threshold=50)
+        self._runtime_parameters = pyzed_patch.RuntimeParameters(
+            confidence_threshold=50
+        )
 
-        self._camera = sl.Camera()
-        self._objects = sl.Objects()
-        self._image = sl.Mat()
-        self._depth_map = sl.Mat()
+        self._camera = pyzed_patch.Camera()
+        self._objects = pyzed_patch.Objects()
+        self._image = pyzed_patch.Mat()
+        self._depth_map = pyzed_patch.Mat()
 
         self._is_open: bool = False
-        self._resolution: sl.Resolution
+        self._resolution: pyzed_patch.Resolution
 
         self._cached_tracked_objects: List[primitives.TrackedObjects] = []
 
@@ -78,14 +80,14 @@ class AsyncCamera:
         """Opens the ZED camera allowing for it to start grabbing data. Runs in an
         executor to prevent blocking the entire process.
         """
-        init_params = sl.InitParameters(
-            depth_mode=sl.DEPTH_MODE.ULTRA,
-            coordinate_units=sl.UNIT.METER,
+        init_params = pyzed_patch.InitParameters(
+            depth_mode=pyzed_patch.DEPTH_MODE.ULTRA,
+            coordinate_units=pyzed_patch.UNIT.METER,
             # Right handed coordinate system with the X-axis pointed out of the left
             # camera lens and the z-axis pointed upward relvative to the camera. Origin
             # appears to be at the camera itself and not the front of the camera glass.
-            coordinate_system=sl.COORDINATE_SYSTEM.RIGHT_HANDED_Z_UP_X_FWD,
-            camera_image_flip=sl.FLIP_MODE.ON,
+            coordinate_system=pyzed_patch.COORDINATE_SYSTEM.RIGHT_HANDED_Z_UP_X_FWD,
+            camera_image_flip=pyzed_patch.FLIP_MODE.ON,
             depth_maximum_distance=20.0,
             depth_minimum_distance=0.3,
             # NOTE: The default but we may want to change it.
@@ -97,7 +99,7 @@ class AsyncCamera:
         status = await asyncio.get_event_loop().run_in_executor(
             executor, self._camera.open, init_params
         )
-        self._is_open = status == sl.ERROR_CODE.SUCCESS
+        self._is_open = status == pyzed_patch.ERROR_CODE.SUCCESS
         self._resolution = (
             self._camera.get_camera_information().camera_configuration.resolution
         )
@@ -108,36 +110,38 @@ class AsyncCamera:
         if enable_tracking:
             self._enable_positional_tracking()
 
-        batch_parameters = sl.BatchParameters(enable=True)
-        obj_param = sl.ObjectDetectionParameters(
+        batch_parameters = pyzed_patch.BatchParameters(enable=True)
+        obj_param = pyzed_patch.ObjectDetectionParameters(
             batch_trajectories_parameters=batch_parameters,
-            detection_model=sl.OBJECT_DETECTION_MODEL.MULTI_CLASS_BOX_FAST,
+            detection_model=pyzed_patch.OBJECT_DETECTION_MODEL.MULTI_CLASS_BOX_FAST,
             enable_tracking=enable_tracking,
         )
         state = self._camera.enable_object_detection(obj_param)
-        if state != sl.ERROR_CODE.SUCCESS:
+        if state != pyzed_patch.ERROR_CODE.SUCCESS:
             log.error(f"Unable to start object detection: {self._serial_number}")
 
     def _enable_positional_tracking(self) -> None:
         """Enable positional tracking. Required for object detection."""
-        pose_tracking_params = sl.PositionalTrackingParameters()
+        pose_tracking_params = pyzed_patch.PositionalTrackingParameters()
         # NOTE: GEN_2 is a higher performance mode for positional tracking, allowing
         # better accuracy but has a memory leak when using IMU fusion!
-        pose_tracking_params.mode = sl.POSITIONAL_TRACKING_MODE.GEN_1
+        pose_tracking_params.mode = pyzed_patch.POSITIONAL_TRACKING_MODE.GEN_1
         pose_tracking_params.enable_imu_fusion = False
         positional_init = self._camera.enable_positional_tracking(pose_tracking_params)
-        if positional_init != sl.ERROR_CODE.SUCCESS:
+        if positional_init != pyzed_patch.ERROR_CODE.SUCCESS:
             log.error(f"Can't start tracking of camera: {self._serial_number}")
 
-    def enable_odometry_publishing(self, *, fusion: Optional[sl.Fusion] = None) -> None:
+    def enable_odometry_publishing(
+        self, *, fusion: Optional[pyzed_patch.Fusion] = None
+    ) -> None:
         """Enables odometry publishing. Required for localization via the fusion object.
         Also used for reading camera sensor values like the IMU.
         """
-        configuration = sl.CommunicationParameters()
+        configuration = pyzed_patch.CommunicationParameters()
         self._camera.start_publishing(configuration)
         if fusion is not None:
-            uuid = sl.CameraIdentifier(self._serial_number)
-            zero_transform = sl.Transform(0, 0, 0)
+            uuid = pyzed_patch.CameraIdentifier(self._serial_number)
+            zero_transform = pyzed_patch.Transform(0, 0, 0)
             fusion.subscribe(uuid, configuration, zero_transform)
 
     async def update(self, executor: Executor) -> None:
@@ -156,7 +160,7 @@ class AsyncCamera:
         status = await asyncio.get_event_loop().run_in_executor(
             executor, self._camera.grab, self._runtime_parameters
         )
-        return status == sl.ERROR_CODE.SUCCESS
+        return status == pyzed_patch.ERROR_CODE.SUCCESS
 
     def _get_serial_number(self, frame: geometry.ReferenceFrame) -> int:
         if frame == geometry.FRONT_CAMERA:
@@ -170,24 +174,27 @@ class AsyncCamera:
         self, executor: Executor, view: Literal["left", "right"] = "left"
     ) -> None:
         """Retrieves the image asynchronously after grabbing."""
-        view = sl.VIEW.LEFT if view == "left" else sl.VIEW.RIGHT
+        view_enum = pyzed_patch.VIEW.LEFT if view == "left" else pyzed_patch.VIEW.RIGHT
         status = await asyncio.get_event_loop().run_in_executor(
-            executor, self._camera.retrieve_image, self._image, view
+            executor, self._camera.retrieve_image, self._image, view_enum
         )
-        if status != sl.ERROR_CODE.SUCCESS:
+        if status != pyzed_patch.ERROR_CODE.SUCCESS:
             log.error(f"Unable to retrieve image: {self._serial_number}")
 
     async def _retrieve_depth_map(self, executor: Executor) -> None:
         """Retrieves the depth map asynchronously from the camera."""
         status = await asyncio.get_event_loop().run_in_executor(
-            executor, self._camera.retrieve_measure, self._depth_map, sl.MEASURE.DEPTH
+            executor,
+            self._camera.retrieve_measure,
+            self._depth_map,
+            pyzed_patch.MEASURE.DEPTH,
         )
-        if status != sl.ERROR_CODE.SUCCESS:
+        if status != pyzed_patch.ERROR_CODE.SUCCESS:
             log.error(f"Unable to retrieve depth map: {self._serial_number}")
 
     async def _retrieve_objects(self, executor: Executor) -> None:
         """Retrieves the detected objects asynchronously from the camera."""
-        detection_parameters_rt = sl.ObjectDetectionRuntimeParameters(
+        detection_parameters_rt = pyzed_patch.ObjectDetectionRuntimeParameters(
             detection_confidence_threshold=60
         )
         status = await asyncio.get_event_loop().run_in_executor(
@@ -196,7 +203,7 @@ class AsyncCamera:
             self._objects,
             detection_parameters_rt,
         )
-        if status != sl.ERROR_CODE.SUCCESS:
+        if status != pyzed_patch.ERROR_CODE.SUCCESS:
             log.error(f"Unable to retrieve objects: {self._serial_number}")
 
     def close(self) -> None:

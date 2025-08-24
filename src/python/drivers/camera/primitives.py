@@ -7,8 +7,8 @@ import cv2
 import geometry
 import numpy as np
 import pydantic
-from pyzed import sl  # type:ignore[import-untyped]
 from scipy.ndimage import distance_transform_edt  # type:ignore[import-untyped]
+from system_info import pyzed_patch
 
 _IMAGE_SCALE_PCT = 0.25
 _OBSTACLE_DISTANCE_THRESHOLD = 1.0
@@ -36,13 +36,13 @@ class TrackedObjects(pydantic.BaseModel):
 
     @classmethod
     def from_zed_object(
-        cls, frame: geometry.ReferenceFrame, obj: sl.ObjectData
+        cls, frame: geometry.ReferenceFrame, obj: pyzed_patch.ObjectData
     ) -> TrackedObjects:
         width, height, length = obj.dimensions
         bbox = obj.bounding_box_2d
         return TrackedObjects(
             id=obj.id,
-            label=ObjectType.from_zed_object(obj.label),
+            label=ObjectType.from_zed_object(obj.label),  # type: ignore[arg-type]
             position=geometry.Position.from_array(frame, obj.position),
             velocity=geometry.Velocity.from_array(frame, obj.velocity),
             image_bounding_box=((bbox[0][0], bbox[0][1]), (bbox[2][0], bbox[2][1])),
@@ -77,20 +77,20 @@ class ObjectType(enum.Enum):
     SPORT = "SPORT"
 
     @classmethod
-    def from_zed_object(cls, obj: sl.OBJECT_CLASS) -> ObjectType:
-        if obj == sl.OBJECT_CLASS.PERSON:
+    def from_zed_object(cls, obj: pyzed_patch.OBJECT_CLASS) -> ObjectType:
+        if obj == pyzed_patch.OBJECT_CLASS.PERSON:
             return ObjectType("PERSON")
-        elif obj == sl.OBJECT_CLASS.VEHICLE:
+        elif obj == pyzed_patch.OBJECT_CLASS.VEHICLE:
             return ObjectType("VEHICLE")
-        elif obj == sl.OBJECT_CLASS.BAG:
+        elif obj == pyzed_patch.OBJECT_CLASS.BAG:
             return ObjectType("BAG")
-        elif obj == sl.OBJECT_CLASS.ANIMAL:
+        elif obj == pyzed_patch.OBJECT_CLASS.ANIMAL:
             return ObjectType("ANIMAL")
-        elif obj == sl.OBJECT_CLASS.ELECTRONICS:
+        elif obj == pyzed_patch.OBJECT_CLASS.ELECTRONICS:
             return ObjectType("ELECTRONICS")
-        elif obj == sl.OBJECT_CLASS.FRUIT_VEGETABLE:
+        elif obj == pyzed_patch.OBJECT_CLASS.FRUIT_VEGETABLE:
             return ObjectType("FRUIT_VEGETABLE")
-        elif obj == sl.OBJECT_CLASS.SPORT:
+        elif obj == pyzed_patch.OBJECT_CLASS.SPORT:
             return ObjectType("SPORT")
         else:
             raise ValueError(f"Unknown object {obj}, type: {type(obj)}")
@@ -154,7 +154,7 @@ class Image:
         self._array = array
 
     @classmethod
-    def from_zed_image(cls, zed_image: sl.Mat) -> Optional[Image]:
+    def from_zed_image(cls, zed_image: pyzed_patch.Mat) -> Optional[Image]:
         """Creates an image from the zed image matrix object. If the image is empty
         returns None instead of an invalid Image.
         """
