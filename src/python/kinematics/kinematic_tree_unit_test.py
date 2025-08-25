@@ -1,7 +1,3 @@
-"""
-Tests for the kinematic_tree.KinematicTree class.
-"""
-
 import geometry
 import pytest
 
@@ -36,9 +32,7 @@ def tree() -> kinematic_tree.KinematicTree:
 def test_add_stationary_link() -> None:
     """Test adding a stationary link to the tree with default parameters."""
     tree = kinematic_tree.KinematicTree()
-    assert geometry.BASE in tree.frames
-    base_node = tree.get_node(geometry.BASE)
-    assert base_node.joint_type == joint_nodes.JointType.FIXED
+    assert _base_tree_is_valid(tree)
     tree.add_stationary_link(
         geometry.ARM,
         geometry.Position.zero(geometry.BASE),
@@ -53,16 +47,30 @@ def test_add_stationary_link() -> None:
     assert arm_node.parent and arm_node.parent.frame == geometry.BASE
 
 
-def test_add_rotary_link(tree: kinematic_tree.KinematicTree) -> None:
+def test_add_rotary_link() -> None:
     """Test adding a rotary link to the tree with default parameters."""
+    tree = kinematic_tree.KinematicTree()
+    assert _base_tree_is_valid(tree)
+    tree.add_rotary_link(
+        geometry.ARM,
+        geometry.Position.zero(geometry.BASE),
+        geometry.Orientation.zero(geometry.BASE),
+        geometry.Direction.unit_x(geometry.ARM),
+    )
+
     assert geometry.ARM in tree.frames
     arm_node = tree.get_node(geometry.ARM)
     assert arm_node.joint_type == joint_nodes.JointType.ROTARY
+    assert arm_node.frame == geometry.ARM
+    assert arm_node.parent and arm_node.parent.frame == geometry.BASE
 
-    # Check that child frames are returned correctly
+
+def test_frame_lineage(tree: kinematic_tree.KinematicTree) -> None:
+    """Test that the frame lineage is returned correctly."""
     lineage = tree.frame_lineage(geometry.ARM)
     assert geometry.BASE in lineage
     assert geometry.ARM in lineage
+    assert geometry.SHOULDER in lineage
     assert len(lineage) == 3
 
 
@@ -113,3 +121,11 @@ def test_upward_transform(tree: kinematic_tree.KinematicTree) -> None:
     assert p_base.x == p_shoulder.x * shoulder_ori.cos("yaw")
     assert p_base.y == p_shoulder.x * shoulder_ori.sin("yaw")
     assert p_base.z == 0.3
+
+
+def _base_tree_is_valid(base_tree: kinematic_tree.KinematicTree) -> bool:
+    """Returns True if the base tree is valid, False otherwise."""
+    base_frame_available = geometry.BASE in base_tree.frames
+    base_node = base_tree.get_node(geometry.BASE)
+    base_frame_is_fixed = base_node.joint_type == joint_nodes.JointType.FIXED
+    return base_frame_available and base_frame_is_fixed
