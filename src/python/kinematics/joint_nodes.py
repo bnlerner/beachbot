@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 import dataclasses
+import enum
 from typing import List, Optional, Tuple
 
 import geometry
 import numpy as np
 
-from kinematics import primitives
+
+class JointType(enum.Enum):
+    """Types of joints in a kinematic chain. Fixed has no movement relative to its
+    parent. Rotary rotates about a single axis.
+    """
+
+    FIXED = 0
+    ROTARY = 1
 
 
 @dataclasses.dataclass
@@ -21,7 +29,7 @@ class BaseFrameNode:
     frame: geometry.ReferenceFrame
     origin: geometry.Position
     orientation: geometry.Orientation
-    joint_type: primitives.JointType
+    joint_type: JointType
 
     rotary_axis: Optional[geometry.Direction] = dataclasses.field(default=None)
     velocity: Optional[geometry.Velocity] = dataclasses.field(default=None)
@@ -65,9 +73,7 @@ class FixedFrameNode(BaseFrameNode):
     frame and do not allow any relative motion.
     """
 
-    joint_type: primitives.JointType = dataclasses.field(
-        default=primitives.JointType.FIXED, init=False
-    )
+    joint_type: JointType = dataclasses.field(default=JointType.FIXED, init=False)
 
     def get_transformation_matrix(self) -> np.ndarray:
         """Get the 4x4 homogeneous transformation matrix from parent to this frame."""
@@ -87,9 +93,7 @@ class RotaryFrameNode(BaseFrameNode):
     limits: Tuple[float, float] = (-float("inf"), float("inf"))
     angle: float = 0.0
 
-    joint_type: primitives.JointType = dataclasses.field(
-        default=primitives.JointType.ROTARY, init=False
-    )
+    joint_type: JointType = dataclasses.field(default=JointType.ROTARY, init=False)
 
     def get_transformation_matrix(self) -> np.ndarray:
         """Get the 4x4 homogeneous transformation matrix from parent to this frame."""

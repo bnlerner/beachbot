@@ -13,7 +13,7 @@ import geometry
 import numpy as np
 from typing_helpers import req
 
-from kinematics import joint_nodes, primitives
+from kinematics import joint_nodes
 
 
 class KinematicTree:
@@ -55,9 +55,8 @@ class KinematicTree:
         # TODO: Add Caching for transformation matrices to improve performance
 
         # Add the root frame which is always fixed and at the origin
-        self.add_stationary_link(
+        self._links[root_frame] = joint_nodes.FixedFrameNode(
             frame=root_frame,
-            parent=None,
             origin=geometry.Position.zero(root_frame),
             orientation=geometry.Orientation.zero(root_frame),
         )
@@ -70,12 +69,14 @@ class KinematicTree:
     def add_stationary_link(
         self,
         frame: geometry.ReferenceFrame,
-        parent: Optional[geometry.ReferenceFrame],
         origin: geometry.Position,
         orientation: geometry.Orientation,
     ) -> None:
+        """Adds a stationary link to the tree in the reference frame of the origin and
+        orientation provided.
+        """
         self._raise_if_link_exists(frame)
-        parent_node = self._links[parent] if parent else None
+        parent_node = self._links[origin.frame] if origin else None
         node = joint_nodes.FixedFrameNode(
             frame=frame, parent=parent_node, origin=origin, orientation=orientation
         )
@@ -87,16 +88,17 @@ class KinematicTree:
     def add_rotary_link(
         self,
         frame: geometry.ReferenceFrame,
-        parent: geometry.ReferenceFrame,
         origin: geometry.Position,
         orientation: geometry.Orientation,
         axis: geometry.Direction,
         limits: Tuple[float, float] = (-float("inf"), float("inf")),
     ) -> None:
-        """Adds a rotary link to the tree."""
+        """Adds a rotary link to the tree in the reference frame of the origin and
+        orientation provided.
+        """
         self._raise_if_link_exists(frame)
-        self._raise_if_no_parent_exists(parent)
-        parent_node = self.get_node(parent)
+        self._raise_if_no_parent_exists(origin.frame)
+        parent_node = self.get_node(origin.frame)
         node = joint_nodes.RotaryFrameNode(
             frame=frame,
             origin=origin,
@@ -107,7 +109,7 @@ class KinematicTree:
             limits=limits,
             parent=parent_node,
         )
-        self._links[parent].add_child(node)
+        self._links[origin.frame].add_child(node)
         self._links[frame] = node
 
     def parent_frame(
@@ -275,7 +277,7 @@ class KinematicTree:
 
         # Update each component if provided
         if orientation is not None:
-            if node.joint_type == primitives.JointType.FIXED:
+            if node.joint_type == joint_nodes.JointType.FIXED:
                 raise ValueError(f"Cannot update orientation of fixed joint '{frame}'")
             node.orientation = orientation
 
