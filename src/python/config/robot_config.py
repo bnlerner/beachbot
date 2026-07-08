@@ -42,6 +42,13 @@ class DrivetrainLocation(str, enum.Enum):
     REAR_RIGHT = "REAR_RIGHT"
 
 
+class MotorControllerType(str, enum.Enum):
+    """CAN motor controller protocol used by a drivetrain motor."""
+
+    ODRIVE = "ODRIVE"
+    MYACTUATOR_V3 = "MYACTUATOR_V3"
+
+
 class Motor(pydantic.BaseModel):
     """Representative of the motor, useful for CAN communication and identifying
     the motor location.
@@ -49,11 +56,15 @@ class Motor(pydantic.BaseModel):
 
     node_id: int
     location: DrivetrainLocation
-    # Torque constant in (Kt): Nm per Amp
-    torque_constant: float
+    # Torque constant in (Kt): Nm per Amp. ODrive only; unused for MyActuator.
+    torque_constant: float = 0.0
     # Continuous current is max amperage that can be provided constantly to the motor.
-    # Typically this is limited by wiring.
-    continous_current: float
+    # Typically this is limited by wiring. ODrive only; unused for MyActuator.
+    continous_current: float = 0.0
+    controller_type: MotorControllerType = MotorControllerType.ODRIVE
+    # Default max speed (dps) for MyActuator absolute position moves (cmd 0xA4).
+    # Matches myactuator_rmd sendPositionAbsoluteSetpoint default of 500 dps.
+    default_max_speed_dps: int = 500
 
     @functools.cached_property
     def side(self) -> Literal["left", "right"]:
@@ -66,6 +77,14 @@ class Motor(pydantic.BaseModel):
         else:
             return "right"
 
+    @property
+    def is_odrive(self) -> bool:
+        return self.controller_type == MotorControllerType.ODRIVE
+
+    @property
+    def is_myactuator(self) -> bool:
+        return self.controller_type == MotorControllerType.MYACTUATOR_V3
+
     @classmethod
     def from_json(cls, file_path: pathlib.Path) -> Motor:
         if not file_path.exists():
@@ -75,6 +94,24 @@ class Motor(pydantic.BaseModel):
             motor_config_dict = json.load(f)
 
         location = DrivetrainLocation(file_path.stem.upper())
+        controller_type = MotorControllerType(
+            motor_config_dict.get(
+                "controller_type", MotorControllerType.ODRIVE.value
+            )
+        )
+
+        if controller_type == MotorControllerType.MYACTUATOR_V3:
+            # MyActuator position servos only need CAN node ID (+ optional max speed).
+            # Torque/current constants are not part of the position control API.
+            return Motor(
+                node_id=int(motor_config_dict["node_id"]),
+                location=location,
+                controller_type=controller_type,
+                default_max_speed_dps=int(
+                    motor_config_dict.get("default_max_speed_dps", 500)
+                ),
+            )
+
         node_id = motor_config_dict["axis0.config.can.node_id"]
         torque_constant = motor_config_dict["axis0.config.motor.torque_constant"]
         continuous_current = motor_config_dict["config.dc_max_positive_current"]
@@ -84,13 +121,14 @@ class Motor(pydantic.BaseModel):
             location=location,
             torque_constant=torque_constant,
             continous_current=continuous_current,
+            controller_type=controller_type,
         )
 
     def max_torque(self) -> float:
         return self.torque_constant * self.continous_current
 
     def __hash__(self) -> int:
-        return hash((self.__class__, self.node_id))
+        return hash((self.__class__, self.node_id, self.controller_type))
 
 
 class Drivetrain(pydantic.BaseModel):

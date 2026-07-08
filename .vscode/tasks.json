@@ -10,7 +10,7 @@
       },
       "group": {
         "kind": "build",
-        "isDefault": true
+        "isDefault": false
       },
       "presentation": {
         "echo": true,
@@ -30,12 +30,13 @@
       "command": "cmake",
       "args": [
         "--build",
-        ".",
+        "${workspaceFolder}/build/cpp",
         "--config",
-        "Debug"
+        "Debug",
+        "-j"
       ],
       "options": {
-        "cwd": "${workspaceFolder}/build"
+        "cwd": "${workspaceFolder}"
       },
       "group": "build",
       "presentation": {
@@ -56,10 +57,14 @@
       "type": "shell",
       "command": "cmake",
       "args": [
-        "../src/cpp"
+        "-S",
+        "${workspaceFolder}/src/cpp",
+        "-B",
+        "${workspaceFolder}/build/cpp",
+        "-DCMAKE_CXX_COMPILER=clang++-18"
       ],
       "options": {
-        "cwd": "${workspaceFolder}/build"
+        "cwd": "${workspaceFolder}"
       },
       "group": "build",
       "presentation": {
@@ -74,10 +79,15 @@
     {
       "label": "clean-cpp",
       "type": "shell",
-      "command": "make",
-      "args": ["clean"],
+      "command": "cmake",
+      "args": [
+        "--build",
+        "${workspaceFolder}/build/cpp",
+        "--target",
+        "clean"
+      ],
       "options": {
-        "cwd": "${workspaceFolder}/src/cpp"
+        "cwd": "${workspaceFolder}"
       },
       "group": "build",
       "presentation": {
