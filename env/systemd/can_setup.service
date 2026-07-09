@@ -1,10 +1,21 @@
 [Unit]
-Description=Can network setup
+Description=Beachbot SocketCAN bring-up (can0 @ 1 Mbit/s)
+# Wait until sys-subsystem-net-devices-can0.device exists when the adapter is present.
+# Also runs at multi-user so a cold-plugged adapter at boot still comes up.
+After=sys-subsystem-net-devices-can0.device
+Wants=sys-subsystem-net-devices-can0.device
 
 [Service]
-ExecStart=/usr/local/bin/setup_can.sh
 Type=oneshot
-RemainAfterExit=true
+RemainAfterExit=yes
+# No sudo: systemd runs this as root.
+ExecStart=/usr/local/bin/setup_can.sh can0 1000000
+ExecStop=/sbin/ip link set can0 down
+# Allow retries when the USB adapter is hot-plugged shortly after boot.
+Restart=on-failure
+RestartSec=2
+StartLimitIntervalSec=30
+StartLimitBurst=10
 
 [Install]
 WantedBy=multi-user.target

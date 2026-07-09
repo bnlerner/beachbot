@@ -37,7 +37,11 @@ chmod +x ZED_SDK_Tegra_L4T35.4_v4.2.2.zstd.run && \
 ./ZED_SDK_Tegra_L4T35.4_v4.2.2.zstd.run && \
 sudo cp ~/beachbot/env/scripts/setup_can.sh /usr/local/bin/ && sudo chmod +x /usr/local/bin/setup_can.sh && \
 sudo cp env/systemd/*.service /etc/systemd/system/ && \
+sudo cp env/udev/99-beachbot-can.rules /etc/udev/rules.d/ && \
+sudo udevadm control --reload-rules && \
+sudo systemctl daemon-reload && \
 sudo systemctl enable can_setup.service && sudo systemctl enable beachbot_startup.service && \
+sudo systemctl restart can_setup.service && \
 sudo pip3 install -U jetson-stats && \
 wget https://ompl.kavrakilab.org/core/install-ompl-ubuntu.sh && chmod u+x install-ompl-ubuntu.sh && \
 ./install-ompl-ubuntu.sh --python && \

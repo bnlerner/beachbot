@@ -51,6 +51,8 @@ VersionAcquisitionCommand = myactuator_v3_messages.VersionAcquisitionCommand
 FunctionControlCommand = myactuator_v3_messages.FunctionControlCommand
 SpeedControlCommand = myactuator_v3_messages.SpeedControlCommand
 TorqueControlCommand = myactuator_v3_messages.TorqueControlCommand
+WriteAccelerationCommand = myactuator_v3_messages.WriteAccelerationCommand
+ReadAccelerationCommand = myactuator_v3_messages.ReadAccelerationCommand
 
 # X4-24 controller message classes
 X424CanMessageSetAndQuery = x4_24_messages.X424CanMessageSetAndQuery
@@ -69,3 +71,4 @@ QAReturnMessageType2 = x4_24_messages.QAReturnMessageType2
 QAReturnMessageType3 = x4_24_messages.QAReturnMessageType3
 QAReturnMessageType4 = x4_24_messages.QAReturnMessageType4
 QAReturnMessageType5 = x4_24_messages.QAReturnMessageType5
+X424AutomaticFeedbackMessage = x4_24_messages.X424AutomaticFeedbackMessage

@@ -1,8 +1,8 @@
 {
   "ros.distro": "melodic",
-  "C_Cpp_Runner.cCompilerPath": "clang",
-  "C_Cpp_Runner.cppCompilerPath": "clang++",
-  "C_Cpp_Runner.debuggerPath": "lldb",
+  "C_Cpp_Runner.cCompilerPath": "/usr/bin/clang-18",
+  "C_Cpp_Runner.cppCompilerPath": "/usr/bin/clang++-18",
+  "C_Cpp_Runner.debuggerPath": "/usr/bin/gdb",
   "C_Cpp_Runner.cStandard": "",
   "C_Cpp_Runner.cppStandard": "",
   "C_Cpp_Runner.msvcBatchPath": "",
@@ -57,6 +57,6 @@
   "C_Cpp_Runner.showCompilationTime": false,
   "C_Cpp_Runner.useLinkTimeOptimization": false,
   "C_Cpp_Runner.msvcSecureNoWarnings": false,
-  "idf.pythonInstallPath": "/opt/homebrew/anaconda3/bin/python",
-  "cmake.sourceDirectory": "/Users/brianlerner/beachbot/src/cpp"
+  "idf.pythonInstallPath": "/usr/bin/python3",
+  "cmake.sourceDirectory": "/home/brianlerner/beachbot/src/cpp"
 }

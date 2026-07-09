@@ -1,0 +1,6 @@
+# Bring up beachbot CAN when a gs_usb (CANable/candleLight, 1d50:606f) netdev appears.
+# Restarts the oneshot can_setup.service so bitrate is applied after hot-plug.
+ACTION=="add", SUBSYSTEM=="net", DRIVERS=="?*", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="606f", KERNEL=="can*", TAG+="systemd", ENV{SYSTEMD_WANTS}+="can_setup.service"
+
+# Also match by driver name if vendor attrs are not on the netdev parent path.
+ACTION=="add", SUBSYSTEM=="net", DRIVERS=="gs_usb", KERNEL=="can*", TAG+="systemd", ENV{SYSTEMD_WANTS}+="can_setup.service"

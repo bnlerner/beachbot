@@ -230,6 +230,60 @@ class PositionControlCommand(MyActuatorCanMessage):
         )
 
 
+class WriteAccelerationCommand(MyActuatorCanMessage):
+    """Write acceleration/deceleration to RAM and ROM (cmd 0x43).
+
+    Equivalent to myactuator_rmd ActuatorInterface.setAcceleration(value, mode).
+    Value range is [100, 60000] dps² (1 dps²/LSB). Saved to ROM (persists).
+    """
+
+    cmd_id = 0x43
+
+    # Profile type: position/velocity accel or decel.
+    acceleration_type: enums.MyActuatorAccelerationType
+    # Acceleration magnitude in dps² [100, 60000].
+    acceleration_dps2: int
+
+    def _gen_can_msg_data(self) -> bytes:
+        accel = int(self.acceleration_dps2)
+        accel = max(100, min(60000, accel))
+        return bytes(
+            [
+                self.cmd_id,
+                int(self.acceleration_type.value),
+                0,
+                0,
+                accel & 0xFF,
+                (accel >> 8) & 0xFF,
+                (accel >> 16) & 0xFF,
+                (accel >> 24) & 0xFF,
+            ]
+        )
+
+
+class ReadAccelerationCommand(MyActuatorCanMessage):
+    """Read acceleration parameter (cmd 0x42)."""
+
+    cmd_id = 0x42
+
+    # Acceleration value from the motor reply (dps²).
+    acceleration_dps2: int
+
+    def _gen_can_msg_data(self) -> bytes:
+        return bytes([self.cmd_id, 0, 0, 0, 0, 0, 0, 0])
+
+    def _parse_can_msg_data(self, msg: can.Message) -> None:
+        accel_raw = (
+            msg.data[4]
+            | (msg.data[5] << 8)
+            | (msg.data[6] << 16)
+            | (msg.data[7] << 24)
+        )
+        if accel_raw > 0x7FFFFFFF:
+            accel_raw -= 0x100000000
+        self.acceleration_dps2 = accel_raw
+
+
 class IncrementalPositionControlCommand(MyActuatorCanMessage):
     """Command to control the incremental position of the motor. The host sends this
     command to control the incremental position (multi-turn angle) of

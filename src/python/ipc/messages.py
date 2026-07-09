@@ -43,15 +43,23 @@ class IMUMessage(core.BaseMessage):
 
 
 class MotorCommandMessage(core.BaseMessage):
-    """Commands a velocity setpoint for the motor Allows setting a feedforward torque
-    (Nm) along with a custom integral reset directly in the motor controller.
+    """Commands a motor setpoint.
+
+    ODrive motors use velocity (turns/s) and optional feedforward torque (Nm).
+    MyActuator V3 motors use absolute multi-turn position (degrees) via protocol
+    command 0xA4 (sendPositionAbsoluteSetpoint), with optional max_speed_dps.
     """
 
     motor: robot_config.Motor
-    velocity: float
+    # ODrive: velocity setpoint in turns/s. Ignored for MyActuator position mode.
+    velocity: float = 0.0
     feedforward_torque: float = 0.0
-    # Ensures there is no transient integral torque in the motor
+    # Ensures there is no transient integral torque in the motor (ODrive only).
     reset_integral: bool = False
+    # MyActuator V3: absolute multi-turn position target in degrees (cmd 0xA4).
+    position: float | None = None
+    # MyActuator V3: max speed for the position move in deg/s (1 dps/LSB on wire).
+    max_speed_dps: int | None = None
 
 
 class MotorVelocityMessage(core.BaseMessage):
@@ -59,6 +67,13 @@ class MotorVelocityMessage(core.BaseMessage):
 
     motor: robot_config.Motor
     estimated_velocity: float
+
+
+class MotorPositionMessage(core.BaseMessage):
+    """Estimated multi-turn position (degrees) from a MyActuator controller."""
+
+    motor: robot_config.Motor
+    estimated_position_deg: float
 
 
 class NavigateRequest(core.Request):

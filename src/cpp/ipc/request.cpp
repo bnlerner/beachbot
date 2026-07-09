@@ -46,7 +46,7 @@ RequestServer::RequestServer(const NodeID& node_id, const RequestSpec& req_spec,
     request_sub = make_unique<Subscriber>(node_id, request_spec.request_channel(), [this](const BaseMessage& msg) {
         this->process_request(msg);
     });
-    cancel_sub = make_unique<Subscriber>(node_id, request_spec.cancel_channel(), [this](const BaseMessage& /*msg*/) {
+    cancel_sub = make_unique<Subscriber>(node_id, request_spec.cancel_channel(), [](const BaseMessage& /*msg*/) {
         // No-op for now
     });
 }

@@ -1,0 +1,5 @@
+{
+  "controller_type": "MYACTUATOR_V3",
+  "node_id": 1,
+  "default_max_speed_dps": 500
+}

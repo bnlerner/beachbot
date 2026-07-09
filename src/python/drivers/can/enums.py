@@ -30,9 +30,24 @@ class X424MotorError(enum.Enum):
 class MyActuatorV3OperatingMode(enum.Enum):
     """Specifies the operating modes for the MyActuator controller V3."""
 
+    # Returned when the motor is powered but not in a closed control loop.
+    IDLE = 0x00
     CURRENT_LOOP_CONTROL = 0x01
     SPEED_LOOP_CONTROL = 0x02
     POSITION_LOOP_CONTROL = 0x03
+
+
+class MyActuatorAccelerationType(enum.Enum):
+    """Acceleration / deceleration profile type for cmd 0x43.
+
+    Matches myactuator_rmd AccelerationType. Units on the wire are dps²
+    with a valid range of [100, 60000].
+    """
+
+    POSITION_PLANNING_ACCELERATION = 0x00
+    POSITION_PLANNING_DECELERATION = 0x01
+    VELOCITY_PLANNING_ACCELERATION = 0x02
+    VELOCITY_PLANNING_DECELERATION = 0x03
 
 
 class MyActuatorFunctionControlIndex(enum.Enum):

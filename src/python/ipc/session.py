@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Any, Dict, List, Optional
 
 import system_info
@@ -8,6 +9,8 @@ _MOTOR_CONFIG_PATH = system_info.get_root_project_directory() / "env" / "motor_c
 _FLAT_ENDPOINT_PATH = (
     system_info.get_root_project_directory() / "env/motor_configs/flat_endpoints.json"
 )
+# Override with BEACHBOT_ROBOT_NAME (e.g. "myactuator-dev") to select motor configs.
+_DEFAULT_ROBOT_NAME = "beachbot-1"
 
 
 def get_motor(
@@ -40,9 +43,8 @@ def get_robot_motors(*, robot_name: Optional[str] = None) -> List[robot_config.M
 
 
 def get_robot_name() -> str:
-    """The configured robot."""
-    # TODO: Make this change based on which robot is running.
-    return "beachbot-1"
+    """The configured robot motor-config profile name."""
+    return os.environ.get("BEACHBOT_ROBOT_NAME", _DEFAULT_ROBOT_NAME)
 
 
 def get_motor_endpoint_data() -> Dict[str, Any]:

@@ -2,13 +2,17 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "C/C++ Runner: Debug Session",
-      "type": "lldb",
+      "name": "Debug beachbot_cpp (gdb)",
+      "type": "cppdbg",
       "request": "launch",
       "args": [],
-      "cwd": "/Users/brianlerner/beachbot/src/cpp",
-      "program": "/Users/brianlerner/beachbot/build/bin/beachbot_cpp",
-      "preLaunchTask": "build-cpp"
+      "cwd": "/home/brianlerner/beachbot/src/cpp",
+      "program": "/home/brianlerner/beachbot/build/bin/beachbot_cpp",
+      "preLaunchTask": "build-cpp-cmake",
+      "MIMode": "gdb",
+      "miDebuggerPath": "/usr/bin/gdb",
+      "stopAtEntry": false,
+      "externalConsole": false
     }
   ]
 }
