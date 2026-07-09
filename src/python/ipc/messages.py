@@ -1,6 +1,7 @@
 from typing import List
 
 import geometry
+import pydantic
 from config import robot_config
 from drivers.camera import primitives as camera_primitives
 
@@ -11,9 +12,7 @@ class CameraImageMessage(core.BaseMessage):
     """Message containing a camera image."""
 
     image: camera_primitives.Image
-
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
 
 
 class GNSSMessage(core.BaseMessage):

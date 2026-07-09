@@ -1,3 +1,4 @@
+import sys
 import time
 from typing import Generator
 
@@ -55,6 +56,8 @@ def _gen_sample_msg() -> messages.MotorCommandMessage:
     )
 
 
+# Skip this test on non-Linux platforms due to SharedMemory not being available at /dev/shm
+@pytest.mark.skipif(sys.platform != "linux", reason="Shared memory tests require Linux")
 async def test_pubsub_speed(
     subscriber: pubsub.Subscriber, publisher: pubsub.Publisher
 ) -> None:

@@ -6,7 +6,8 @@ types-pynput==1.7.7.20240813
 ruff==0.1.8
 sparkfun-ublox-gps==1.1.5
 pyserial==3.5
-spidev==3.6
+# Version of spidev is not available for macos
+spidev==3.6; sys_platform == "linux"
 # originally had 2.0.2 but zed needs a downgrade
 numpy==1.26.4
 numba==0.60.0
@@ -23,9 +24,3 @@ PyOpenGL==3.1.7
 adafruit-circuitpython-bno08x==1.2.7
 Jetson.GPIO==2.1.6
 opencv-python==4.10.0.84
-# To handle the cv2 missing import error too
-[mypy.plugins.numpy.*]
-follow_imports = silent
-
-[mypy-cv2.*]
-ignore_missing_imports = True
