@@ -36,7 +36,15 @@ class X424CanMessage(messages.CanMessage):
                 f"CAN message does not match the class desired {cls.__name__}!"
             )
 
-        node_id = (msg.arbitration_id >> 8) & 0xFF
+        # Control / Q&A return frames use the motor ID as the 11-bit arbitration
+        # ID (1..32). Setup frames use 0x7FF (node filled in by parser).
+        # Automatic cyclic feedback uses 0x204+ID (handled by subclass override).
+        if msg.arbitration_id == 0x7FF:
+            node_id = 0
+        elif msg.arbitration_id <= 0xFF:
+            node_id = msg.arbitration_id
+        else:
+            node_id = (msg.arbitration_id >> 8) & 0xFF
 
         message = cls(node_id=node_id)
         message._parse_can_msg_data(msg)
@@ -373,32 +381,29 @@ class X424CurrentControlMessage(X424CanMessage):
 class QAReturnMessage(X424CanMessage):
     """Q&A return message for X4-24 motors.
 
-    Contains position, speed, current, and temperature information.
+    Multi-byte fields on the wire are big-endian (IEEE 754 floats included),
+    per RMD-X4-P36-24 / Appendix 1 protocol notes.
     """
 
     @classmethod
     def matches(cls, msg: can.Message) -> bool:
-        """Check if the CAN message matches QAReturnMessageType1 format."""
-        # Check message type (bits 5-7 of first byte)
+        """Match on message class in bits 5-7 of data[0]."""
+        if not msg.data:
+            return False
         message_type = (msg.data[0] >> 5) & 0x07
-        print(f"{cls.__name__}: message_type: {message_type}, cmd_id: {cls.cmd_id}")
         return message_type == cls.cmd_id
 
 
 class QAReturnMessageType1(QAReturnMessage):
     """Q&A return message type 1 for X4-24 motors.
 
-    Contains position, speed, current, and temperature information.
-
-    Format:
+    Packed bitfields (big-endian bit layout across the 8-byte frame):
     - Byte0[5:7]: Message type (0x01)
     - Byte0[0:4]: Motor error message
-    - Byte1-Byte7: Motor data
-        - Motor position (uint16): 0~65536 corresponds to -12.5~12.5 rad
-        - Motor speed (uint12): 0-4095 corresponds to -18.0~18.0 rad/s
-        - Actual current (uint12): 0-4095 corresponds to -30-30A
-        - Motor temperature (uint8): (actual_temp*2)+50
-        - MOS temperature (uint8): (actual_temp*2)+50
+    - Position (uint16): 0~65535 → -12.5..+12.5 rad
+    - Speed (uint12): 0-4095 → -18.0..+18.0 rad/s
+    - Current (uint12): 0-4095 → -30..+30 A
+    - Motor / MOS temperature (uint8): °C = (raw - 50) / 2
     """
 
     cmd_id = 0x01
@@ -459,49 +464,41 @@ class QAReturnMessageType1(QAReturnMessage):
 class QAReturnMessageType2(QAReturnMessage):
     """Q&A return message type 2 for X4-24 motors.
 
-    Contains precise position, current, and temperature information.
-
-    Format:
+    Format (all multi-byte fields big-endian):
     - Byte0[5:7]: Message type (0x02)
     - Byte0[0:4]: Motor error message
-    - Byte1-Byte7: Motor data
-        - Motor position (float32): Actual angle in radians
-        - Actual current (int16): -32768~32767 corresponds to -327.68~327.67A
-        - Motor temperature (uint8): (actual_temp*2)+50
+    - Bytes 1-4: float32 position in **degrees** (IEEE 754 BE)
+    - Bytes 5-6: int16 current (0.01 A/LSB)
+    - Byte 7: motor temperature, °C = (raw - 50) / 2
     """
 
     cmd_id = 0x02
 
     # Fields
     motor_error: int = 0  # 0-7
-    position: float = 0.0  # position in radians
+    position: float = 0.0  # position in degrees
     current: float = 0.0  # current in amperes
     motor_temp: float = 0.0  # temperature in °C
 
     def _parse_can_msg_data(self, msg: can.Message) -> None:
         """Parse the CAN message data into fields."""
-        # Extract message type and error from first byte
         self.motor_error = msg.data[0] & 0x1F  # Lower 5 bits
 
-        # Extract position as float32 (bytes 1-4)
-        position_bytes = bytes([msg.data[1], msg.data[2], msg.data[3], msg.data[4]])
-        self.position = struct.unpack("<f", position_bytes)[0]
+        # Position: IEEE 754 float32, big-endian (manual Appendix 1)
+        self.position = struct.unpack(">f", bytes(msg.data[1:5]))[0]
 
-        # Extract current as int16 (bytes 5-6)
+        # Current: big-endian int16, 0.01 A/LSB
         current_raw = (msg.data[5] << 8) | msg.data[6]
-        # Handle signed int16
         if current_raw > 32767:
             current_raw -= 65536
-        self.current = current_raw / 100.0  # Scale by 0.01A/LSB
+        self.current = current_raw / 100.0
 
-        # Extract motor temperature (byte 7)
-        temp_raw = msg.data[7]
-        self.motor_temp = (temp_raw - 50) / 2.0
+        self.motor_temp = (msg.data[7] - 50) / 2.0
 
     def __repr__(self) -> str:
         return (
             f"QAReturnMessageType2(node_id={self.node_id}, error={self.motor_error}, "
-            f"position={self.position:.2f} rad, current={self.current:.2f}A, "
+            f"position={self.position:.2f} deg, current={self.current:.2f}A, "
             f"motor_temp={self.motor_temp:.1f}°C)"
         )
 
@@ -509,15 +506,12 @@ class QAReturnMessageType2(QAReturnMessage):
 class QAReturnMessageType3(QAReturnMessage):
     """Q&A return message type 3 for X4-24 motors.
 
-    Contains precise speed, current, and temperature information.
-
-    Format:
+    Format (all multi-byte fields big-endian):
     - Byte0[5:7]: Message type (0x03)
     - Byte0[0:4]: Motor error message
-    - Byte1-Byte7: Motor data
-        - Motor speed (float32): Actual speed in RPM
-        - Actual current (int16): -32768~32767 corresponds to -327.68~327.67A
-        - Motor temperature (uint8): (actual_temp*2)+50
+    - Bytes 1-4: float32 speed in RPM (IEEE 754 BE)
+    - Bytes 5-6: int16 current (0.01 A/LSB)
+    - Byte 7: motor temperature, °C = (raw - 50) / 2
     """
 
     cmd_id = 0x03
@@ -529,23 +523,18 @@ class QAReturnMessageType3(QAReturnMessage):
 
     def _parse_can_msg_data(self, msg: can.Message) -> None:
         """Parse the CAN message data into fields."""
-        # Extract message type and error from first byte
         self.motor_error = msg.data[0] & 0x1F  # Lower 5 bits
 
-        # Extract speed as float32 (bytes 1-4)
-        speed_bytes = bytes([msg.data[1], msg.data[2], msg.data[3], msg.data[4]])
-        self.speed = struct.unpack("<f", speed_bytes)[0]
+        # Speed: IEEE 754 float32, big-endian (verified on-bus at ±50 rpm)
+        self.speed = struct.unpack(">f", bytes(msg.data[1:5]))[0]
 
-        # Extract current as int16 (bytes 5-6)
+        # Current: big-endian int16, 0.01 A/LSB
         current_raw = (msg.data[5] << 8) | msg.data[6]
-        # Handle signed int16
         if current_raw > 32767:
             current_raw -= 65536
-        self.current = current_raw / 100.0  # Scale by 0.01A/LSB
+        self.current = current_raw / 100.0
 
-        # Extract motor temperature (byte 7)
-        temp_raw = msg.data[7]
-        self.motor_temp = (temp_raw - 50) / 2.0
+        self.motor_temp = (msg.data[7] - 50) / 2.0
 
     def __repr__(self) -> str:
         return (
@@ -602,12 +591,15 @@ class QAReturnMessageType5(X424CanMessage):
     - Byte0[0:4]: Motor error message
     - Byte1: Query code (1-9)
     - Byte2~: Query returned data (variable length, depends on query code)
-      1: Position (float32, 4 bytes)
-      2: Speed (float32, 4 bytes)
-      3: Current (float32, 4 bytes)
-      4: Power (float32, 4 bytes)
-      5-9: uint16 parameters (2 bytes)
+      1: Position (float32 BE, degrees)
+      2: Speed (float32 BE, rpm)
+      3: Current (float32 BE)
+      4: Power (float32 BE)
+      5: Acceleration (uint16 BE, rad/s²)
+      6-9: uint16 parameters (2 bytes)
     """
+
+    cmd_id = 0x05
 
     # Fields
     motor_error: int = 0  # 0-7
@@ -638,16 +630,14 @@ class QAReturnMessageType5(X424CanMessage):
         # Extract query code (byte 1)
         self.query_code = msg.data[1]
 
-        # Parse the returned data based on query code
+        # Parse the returned data based on query code (big-endian)
         if self.query_code in [1, 2, 3, 4]:
             # Float32 values (position, speed, current, power)
             if len(msg.data) >= 6:  # Need at least 6 bytes
-                value_bytes = bytes(
-                    [msg.data[2], msg.data[3], msg.data[4], msg.data[5]]
-                )
-                value = struct.unpack("<f", value_bytes)[0]
+                value = struct.unpack(">f", bytes(msg.data[2:6]))[0]
 
                 if self.query_code == 1:
+                    # Query 1: position (degrees per type-2 / guide)
                     self.position = value
                 elif self.query_code == 2:
                     self.speed = value
@@ -657,24 +647,93 @@ class QAReturnMessageType5(X424CanMessage):
                     self.power = value
 
         elif self.query_code in [5, 6, 7, 8, 9]:
-            # uint16 values (acceleration, gains, coefficients)
+            # uint16 values (acceleration rad/s² for code 5, gains, coefficients)
             if len(msg.data) >= 4:  # Need at least 4 bytes
                 self.uint16_value = (msg.data[2] << 8) | msg.data[3]
 
     def __repr__(self) -> str:
         value_str = ""
         if self.query_code == 1:
-            value_str = f"position={self.position:.2f} rad"
+            value_str = f"position={self.position:.2f} deg"
         elif self.query_code == 2:
             value_str = f"speed={self.speed:.2f} rpm"
         elif self.query_code == 3:
             value_str = f"current={self.current:.2f} A"
         elif self.query_code == 4:
             value_str = f"power={self.power:.2f} W"
-        elif self.query_code in [5, 6, 7, 8, 9]:
+        elif self.query_code == 5:
+            value_str = f"acceleration={self.uint16_value} rad/s²"
+        elif self.query_code in [6, 7, 8, 9]:
             value_str = f"value={self.uint16_value}"
 
         return (
             f"QAReturnMessageType5(node_id={self.node_id}, error={self.motor_error}, "
             f"query_code={self.query_code}, {value_str})"
+        )
+
+
+class X424AutomaticFeedbackMessage(X424CanMessage):
+    """Automatic-mode cyclic feedback (RMD-X4 Appendix 1).
+
+    When communication mode is Automatic (0x01), the motor pushes this frame
+    at ~1000 Hz.
+
+    - CAN ID: ``0x204 + motor_id`` (e.g. motor 1 → 0x205)
+    - Bytes 0-1: int16 position, degrees = raw / 100.0  (−180..+180)
+    - Bytes 2-3: int16 speed, rpm = raw / 10.0
+    - Bytes 4-5: int16 torque current, A = raw / 10.0
+    - Byte 6: motor temp, °C = (raw - 50) / 2
+    - Byte 7: error code
+    """
+
+    # Base arbitration ID; actual ID is 0x204 + node_id.
+    _AUTO_ID_BASE = 0x204
+
+    position_deg: float = 0.0
+    speed_rpm: float = 0.0
+    current_a: float = 0.0
+    motor_temp: float = 0.0
+    error_code: int = 0
+
+    @classmethod
+    def matches(cls, msg: can.Message) -> bool:
+        if msg.dlc < 8 and len(msg.data) < 8:
+            return False
+        # Motor IDs 1..32 → auto IDs 0x205..0x224
+        return cls._AUTO_ID_BASE + 1 <= msg.arbitration_id <= cls._AUTO_ID_BASE + 32
+
+    @classmethod
+    def from_can_message(
+        cls: Type[X424CanMessageT], msg: can.Message
+    ) -> X424CanMessageT:
+        if not cls.matches(msg):
+            raise ValueError(
+                f"CAN message does not match the class desired {cls.__name__}!"
+            )
+        node_id = msg.arbitration_id - cls._AUTO_ID_BASE
+        message = cls(node_id=node_id)
+        message._parse_can_msg_data(msg)
+        return message
+
+    def _gen_arbitration_id(self) -> messages.X424ArbitrationID:
+        return messages.X424ArbitrationID(
+            node_id=self._AUTO_ID_BASE + self.node_id, cmd_id=0
+        )
+
+    def _parse_can_msg_data(self, msg: can.Message) -> None:
+        pos_raw = struct.unpack(">h", bytes(msg.data[0:2]))[0]
+        spd_raw = struct.unpack(">h", bytes(msg.data[2:4]))[0]
+        cur_raw = struct.unpack(">h", bytes(msg.data[4:6]))[0]
+        self.position_deg = pos_raw / 100.0
+        self.speed_rpm = spd_raw / 10.0
+        self.current_a = cur_raw / 10.0
+        self.motor_temp = (msg.data[6] - 50) / 2.0
+        self.error_code = msg.data[7]
+
+    def __repr__(self) -> str:
+        return (
+            f"X424AutomaticFeedbackMessage(node_id={self.node_id}, "
+            f"position={self.position_deg:.2f} deg, speed={self.speed_rpm:.1f} rpm, "
+            f"current={self.current_a:.2f}A, temp={self.motor_temp:.1f}°C, "
+            f"error={self.error_code})"
         )

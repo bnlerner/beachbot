@@ -37,6 +37,19 @@ class MyActuatorV3OperatingMode(enum.Enum):
     POSITION_LOOP_CONTROL = 0x03
 
 
+class MyActuatorAccelerationType(enum.Enum):
+    """Acceleration / deceleration profile type for cmd 0x43.
+
+    Matches myactuator_rmd AccelerationType. Units on the wire are dps²
+    with a valid range of [100, 60000].
+    """
+
+    POSITION_PLANNING_ACCELERATION = 0x00
+    POSITION_PLANNING_DECELERATION = 0x01
+    VELOCITY_PLANNING_ACCELERATION = 0x02
+    VELOCITY_PLANNING_DECELERATION = 0x03
+
+
 class MyActuatorFunctionControlIndex(enum.Enum):
     """Function indices for the MyActuator V3 controller Function Control Command (0x20).
 
