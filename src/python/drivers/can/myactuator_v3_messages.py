@@ -728,8 +728,16 @@ class VersionAcquisitionCommand(MyActuatorCanMessage):
     version_date: int
 
     def version_datetime(self) -> datetime.datetime:
-        """Parse version_date like 20220206 into a datetime."""
-        return datetime.datetime.strptime(str(self.version_date), "%Y%m%d")
+        """Parse version_date into a datetime.
+
+        Common formats from firmware:
+          - 8 digits: YYYYMMDD (e.g. 20220206)
+          - 10 digits: YYYYMMDDNN build suffix (e.g. 2023041301 on X8)
+        """
+        s = str(self.version_date)
+        if len(s) >= 8:
+            return datetime.datetime.strptime(s[:8], "%Y%m%d")
+        return datetime.datetime.strptime(s, "%Y%m%d")
 
     def _parse_can_msg_data(self, msg: can.Message) -> None:
         self.version_date = _u32_le(msg.data, 4)
