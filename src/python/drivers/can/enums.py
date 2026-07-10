@@ -38,7 +38,7 @@ class MyActuatorV3OperatingMode(enum.Enum):
 
 
 class MyActuatorAccelerationType(enum.Enum):
-    """Acceleration / deceleration profile type for cmd 0x43.
+    """Acceleration / deceleration profile type for cmd 0x43 / 0x42 index.
 
     Matches myactuator_rmd AccelerationType. Units on the wire are dps²
     with a valid range of [100, 60000].
@@ -48,6 +48,30 @@ class MyActuatorAccelerationType(enum.Enum):
     POSITION_PLANNING_DECELERATION = 0x01
     VELOCITY_PLANNING_ACCELERATION = 0x02
     VELOCITY_PLANNING_DECELERATION = 0x03
+
+
+class MyActuatorCanBaudRate(enum.Enum):
+    """CAN baud-rate setting for cmd 0xB4 (protocol / myactuator_rmd)."""
+
+    KBPS_500 = 0
+    MBPS_1 = 1
+
+
+class MyActuatorErrorCode(enum.IntFlag):
+    """Motor status 1 error flag bits (cmd 0x9A), matching myactuator_rmd ErrorCode."""
+
+    NO_ERROR = 0x0000
+    MOTOR_STALL = 0x0002
+    LOW_VOLTAGE = 0x0004
+    OVERVOLTAGE = 0x0008
+    OVERCURRENT = 0x0010
+    POWER_OVERRUN = 0x0040
+    SPEEDING = 0x0100
+    UNSPECIFIED_1 = 0x0200
+    UNSPECIFIED_2 = 0x0400
+    UNSPECIFIED_3 = 0x0800
+    OVERTEMPERATURE = 0x1000
+    ENCODER_CALIBRATION_ERROR = 0x2000
 
 
 class MyActuatorFunctionControlIndex(enum.Enum):

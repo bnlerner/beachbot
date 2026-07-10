@@ -44,17 +44,24 @@ class MyActuatorArbitrationID(pydantic.BaseModel):
         # MyActuator format - see motor_protocol.md
         # Single motor: 0x140+ID (node_id 1-32) for sending, 0x240+ID for receiving
         # Extract node_id by subtracting the base (0x140 or 0x240)
-        if 0x140 <= msg.arbitration_id < 0x160:  # Command message
+        if 0x140 <= msg.arbitration_id <= 0x160:  # Command message (ID 0–32)
             return cls(
                 node_id=(msg.arbitration_id - 0x140),
                 cmd_id=msg.data[0],  # Command is first byte of data
             )
-        elif 0x240 <= msg.arbitration_id < 0x260:  # Reply message
+        elif 0x240 <= msg.arbitration_id <= 0x260:  # Reply message (ID 0–32)
             return cls(
                 node_id=(msg.arbitration_id - 0x240),
                 cmd_id=msg.data[0],  # Command is first byte of data
             )
-        # Multi-motor command messages and motion mode control messages are not yet implemented
+        elif msg.arbitration_id == 0x300:
+            # CAN ID set/read uses fixed arbitration ID 0x300 (cmd 0x79).
+            return cls(
+                node_id=0,
+                cmd_id=msg.data[0] if msg.data else 0x79,
+                custom_value=0x300,
+            )
+        # Multi-motor (0x280) and motion-mode (0x400+ID) not fully implemented here.
         else:
             raise ValueError(f"Invalid MyActuator arbitration ID: {msg.arbitration_id}")
 

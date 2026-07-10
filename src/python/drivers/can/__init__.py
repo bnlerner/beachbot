@@ -39,20 +39,60 @@ Reboot = odrive_messages.Reboot
 # MyActuator V3 controller message classes
 ReadMotorStatus1Message = myactuator_v3_messages.MyactuatorReadMotorStatus1Message
 ReadMotorStatus2Message = myactuator_v3_messages.ReadMotorStatus2Message
+ReadMotorStatus3Message = myactuator_v3_messages.ReadMotorStatus3Message
 ReadMultiTurnAngleMessage = myactuator_v3_messages.ReadMultiTurnAngleMessage
+ReadSingleTurnAngleMessage = myactuator_v3_messages.ReadSingleTurnAngleMessage
+ReadSingleTurnEncoderMessage = myactuator_v3_messages.ReadSingleTurnEncoderMessage
+ReadMultiTurnEncoderPositionMessage = (
+    myactuator_v3_messages.ReadMultiTurnEncoderPositionMessage
+)
+ReadMultiTurnEncoderOriginalPositionMessage = (
+    myactuator_v3_messages.ReadMultiTurnOriginalPositionMessage
+)
+ReadMultiTurnEncoderZeroOffsetMessage = (
+    myactuator_v3_messages.ReadMultiTurnZeroOffsetMessage
+)
+WriteMotorZeroPositionMessage = myactuator_v3_messages.WriteMotorZeroPositionMessage
+WriteEncoderMultiTurnValueToRomAsZeroMessage = (
+    myactuator_v3_messages.WriteEncoderMultiTurnValueToRomAsZeroMessage
+)
 PositionControlCommand = myactuator_v3_messages.PositionControlCommand
+SingleTurnPositionControlCommand = (
+    myactuator_v3_messages.SingleTurnPositionControlCommand
+)
+IncrementalPositionControlCommand = (
+    myactuator_v3_messages.IncrementalPositionControlCommand
+)
 SystemBrakeReleaseCommand = myactuator_v3_messages.SystemBrakeReleaseCommand
 SystemBrakeLockCommand = myactuator_v3_messages.SystemBrakeLockCommand
 MotorShutdownCommand = myactuator_v3_messages.MotorShutdownCommand
 MotorStopCommand = myactuator_v3_messages.MotorStopCommand
 SystemResetCommand = myactuator_v3_messages.SystemResetCommand
+SystemOperatingModeAcquisitionCommand = (
+    myactuator_v3_messages.SystemOperatingModeAcquisitionCommand
+)
+MotorPowerAcquisitionCommand = myactuator_v3_messages.MotorPowerAcquisitionCommand
 CANIDCommand = myactuator_v3_messages.CANIDCommand
 VersionAcquisitionCommand = myactuator_v3_messages.VersionAcquisitionCommand
+SystemRuntimeReadCommand = myactuator_v3_messages.SystemRuntimeReadCommand
+CommunicationInterruptionProtectionCommand = (
+    myactuator_v3_messages.CommunicationInterruptionProtectionCommand
+)
+CommunicationBaudRateSettingCommand = (
+    myactuator_v3_messages.CommunicationBaudRateSettingCommand
+)
+MotorModelReadingCommand = myactuator_v3_messages.MotorModelReadingCommand
+ActiveReplyFunctionCommand = myactuator_v3_messages.ActiveReplyFunctionCommand
 FunctionControlCommand = myactuator_v3_messages.FunctionControlCommand
 SpeedControlCommand = myactuator_v3_messages.SpeedControlCommand
 TorqueControlCommand = myactuator_v3_messages.TorqueControlCommand
 WriteAccelerationCommand = myactuator_v3_messages.WriteAccelerationCommand
 ReadAccelerationCommand = myactuator_v3_messages.ReadAccelerationCommand
+ReadPIDParametersMessage = myactuator_v3_messages.ReadPIDParametersMessage
+WritePIDParametersToRAMMessage = myactuator_v3_messages.WritePIDParametersToRAMMessage
+WritePIDParametersToROMMessage = myactuator_v3_messages.WritePIDParametersToROMMessage
+create_myactuator_message = myactuator_v3_messages.create_myactuator_message
+message_class_for_cmd = myactuator_v3_messages.message_class_for_cmd
 
 # X4-24 controller message classes
 X424CanMessageSetAndQuery = x4_24_messages.X424CanMessageSetAndQuery
