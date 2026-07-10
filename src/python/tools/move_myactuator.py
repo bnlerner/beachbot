@@ -315,12 +315,20 @@ async def move_motor(
         (can.ReadMotorStatus2Message, on_status2),
     )
     listen_task = asyncio.create_task(can_bus.listen())
+    # Give the Notifier/listener tasks a chance to start before first TX.
+    await asyncio.sleep(0.1)
 
     async def query_status() -> None:
-        await can_bus.send(can.ReadMotorStatus1Message(node_id=node_id))
-        await can_bus.send(can.ReadMotorStatus2Message(node_id=node_id))
-        await can_bus.send(can.ReadMultiTurnAngleMessage(node_id=node_id))
-        await asyncio.sleep(0.15)
+        # Space requests slightly so gs_usb adapters don't drop the last reply.
+        for _ in range(3):
+            await can_bus.send(can.ReadMotorStatus1Message(node_id=node_id))
+            await asyncio.sleep(0.03)
+            await can_bus.send(can.ReadMotorStatus2Message(node_id=node_id))
+            await asyncio.sleep(0.03)
+            await can_bus.send(can.ReadMultiTurnAngleMessage(node_id=node_id))
+            await asyncio.sleep(0.12)
+            if last_status1 is not None and last_angle is not None:
+                break
 
     def print_status(prefix: str = "") -> None:
         if last_status1 is not None:
@@ -381,7 +389,7 @@ async def move_motor(
         # Official API: releaseBrake before motion.
         print("Releasing brake…")
         await can_bus.send(can.SystemBrakeReleaseCommand(node_id=node_id))
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.3)
 
         if duration_s is not None:
             # Timed trapezoidal velocity profile (software-streamed 0xA2).
@@ -396,28 +404,38 @@ async def move_motor(
                 get_angle=lambda: last_angle,
             )
         else:
-            # Single-shot absolute position (cmd 0xA4) with soft accel.
+            # Single-shot absolute position (cmd 0xA4).
+            # Note: writing accel (0x43) to ROM immediately before a single 0xA4
+            # has been observed to drop the first position command on some units;
+            # apply profile early, then pause before commanding motion.
             print(
                 f"Setting position accel/decel to {acceleration_dps2} dps² "
                 f"(cmd 0x43)…"
             )
             await _set_accel_profile(can_bus, node_id, acceleration_dps2)
+            await asyncio.sleep(0.15)
             print(
                 f"Position command to {target:.3f}° @ max {max_speed_dps} dps "
                 f"(cmd 0xA4)"
             )
-            await can_bus.send(
-                can.PositionControlCommand(
-                    node_id=node_id,
-                    position=float(target),
-                    max_speed=int(max_speed_dps),
+            # Retransmit a few times: after stop (0x81) / ROM writes, the first
+            # setpoint is occasionally ignored.
+            for _ in range(3):
+                await can_bus.send(
+                    can.PositionControlCommand(
+                        node_id=node_id,
+                        position=float(target),
+                        max_speed=int(max_speed_dps),
+                    )
                 )
-            )
+                await asyncio.sleep(0.05)
+
             deadline = time.perf_counter() + settle_s
             while time.perf_counter() < deadline:
                 await can_bus.send(can.ReadMultiTurnAngleMessage(node_id=node_id))
+                await asyncio.sleep(0.03)
                 await can_bus.send(can.ReadMotorStatus2Message(node_id=node_id))
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.12)
                 if last_angle is not None and abs(last_angle - target) < 0.5:
                     if last_status2 is not None and abs(last_status2.speed) < 5:
                         break
@@ -429,6 +447,23 @@ async def move_motor(
         if last_angle is not None:
             err = last_angle - target
             print(f"  position error: {err:+.3f}°")
+            # Require both near-target and actual displacement for relative moves.
+            on_target = abs(err) < 1.0
+            displaced = abs(last_angle - start_deg) > 0.5
+            if not on_target:
+                print(
+                    f"  ERROR: motor did not reach target "
+                    f"(start={start_deg:.3f}°, now={last_angle:.3f}°)."
+                )
+            elif not displaced and abs(target - start_deg) > 0.5:
+                print(
+                    f"  ERROR: no motion detected "
+                    f"(start={start_deg:.3f}°, now={last_angle:.3f}°)."
+                )
+                on_target = False
+        else:
+            on_target = False
+            print("  ERROR: no angle feedback after move.")
 
         if not hold:
             print("Sending stop (0x81)…")
@@ -436,7 +471,7 @@ async def move_motor(
         else:
             print("Holding (--hold).")
 
-        return 0
+        return 0 if on_target else 1
 
     except Exception as e:
         print(f"Error: {e}")
